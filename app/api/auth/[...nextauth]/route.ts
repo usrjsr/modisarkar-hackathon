@@ -1,4 +1,4 @@
-import NextAuth from "next-auth"
+import NextAuth from "next-auth/next"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 
@@ -51,21 +51,23 @@ const handler = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id
-        token.role = user.role
-        token.rank = user.rank
-        token.commandLevel = user.commandLevel
+        const u = user as unknown as { id: string; role: string; rank: string; commandLevel: string; }
+        token.id = u.id
+        token.role = u.role
+        token.rank = u.rank
+        token.commandLevel = u.commandLevel
       }
       return token
     },
 
     async session({ session, token }) {
-      session.user.id = token.id as string
-      session.user.role = token.role as string
-      session.user.rank = token.rank as string
-      session.user.commandLevel =
-        token.commandLevel as string
-
+      if (session.user) {
+        const u = session.user as unknown as { id: string; role: string; rank: string; commandLevel: string; }
+        u.id = token.id as string
+        u.role = token.role as string
+        u.rank = token.rank as string
+        u.commandLevel = token.commandLevel as string
+      }
       return session
     }
   },
