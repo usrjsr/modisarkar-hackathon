@@ -3,6 +3,7 @@ export interface Zone {
     _id: string;
     name: string;
     code: string;
+    sizeScore: number;
     densityScore: number; // D
     currentDeployment: number;
     safeThreshold: number;

@@ -2,8 +2,6 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-const PUBLIC_ROUTES = ["/login"]
-
 export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl
@@ -21,28 +19,25 @@ export async function middleware(req: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET
   })
 
-  const isPublic = PUBLIC_ROUTES.includes(pathname)
-  const isProtectedDashboard =
-    pathname.startsWith("/zones") ||
-    pathname.startsWith("/roster") ||
-    pathname.startsWith("/personnel") ||
-    pathname.startsWith("/incidents") ||
-    pathname.startsWith("/settings") ||
-    pathname === "/"
+  const isHome = pathname === "/"
+  const isLogin = pathname === "/login"
+  const isDashboard = pathname.startsWith("/dashboard")
 
-  if (!token && isProtectedDashboard) {
-    return NextResponse.redirect(new URL("/login", req.url))
+  if (isHome && token) {
+    return NextResponse.redirect(new URL("/dashboard", req.url))
   }
 
-  if (token && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", req.url))
+  if (isLogin && token) {
+    return NextResponse.redirect(new URL("/dashboard", req.url))
+  }
+
+  if (isDashboard && !token) {
+    return NextResponse.redirect(new URL("/login", req.url))
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)"
-  ]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
 }

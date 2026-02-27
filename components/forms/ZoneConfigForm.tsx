@@ -20,18 +20,16 @@ const zoneSchema = z.object({
 
 type ZoneFormValues = z.infer<typeof zoneSchema>;
 
-export default function ZoneConfigForm({ defaultValues }: { defaultValues?: Partial<ZoneFormValues> }) {
+export default function ZoneConfigForm({ defaultValues, onSubmit: onSubmitCallback }: { defaultValues?: Partial<ZoneFormValues>; onSubmit?: (data: ZoneFormValues) => void }) {
 
-    // 2. Handle defaults here explicitly to ensure no field is undefined
     const initialValues: ZoneFormValues = {
         name: defaultValues?.name || "",
         code: defaultValues?.code || "",
         sizeScore: defaultValues?.sizeScore || 5,
         densityScore: defaultValues?.densityScore || 5,
-        isActive: defaultValues?.isActive ?? true, // Default logic moved here
+        isActive: defaultValues?.isActive ?? true,
     };
 
-    // 3. Removed generic <ZoneFormValues> to let types infer correctly
     const form = useForm({
         resolver: zodResolver(zoneSchema),
         defaultValues: initialValues,
@@ -39,20 +37,19 @@ export default function ZoneConfigForm({ defaultValues }: { defaultValues?: Part
     });
 
     function onSubmit(data: ZoneFormValues) {
-        console.log("Saving Zone:", data);
+        if (onSubmitCallback) {
+            onSubmitCallback(data);
+        } else {
+            console.log("Saving Zone:", data);
+        }
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Zone Configuration</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
                                 control={form.control}
                                 name="name"
                                 render={({ field }) => (
@@ -113,31 +110,6 @@ export default function ZoneConfigForm({ defaultValues }: { defaultValues?: Part
                             )}
                         />
                         {/* Density Score Slider */}
-                        {/* Size Score Slider */}
-                        <FormField
-                            control={form.control}
-                            name="sizeScore"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <div className="flex justify-between items-center">
-                                        <FormLabel>Size Score (S)</FormLabel>
-                                        <span className="text-sm font-bold text-blue-600">{field.value}</span>
-                                    </div>
-                                    <FormControl>
-                                        <Slider
-                                            min={1}
-                                            max={10}
-                                            step={1}
-                                            defaultValue={[field.value]}
-                                            // FIX: Add ": number[]" type annotation here
-                                            onValueChange={(vals: number[]) => field.onChange(vals[0])}
-                                        />
-                                    </FormControl>
-                                    <FormDescription>Geographical area complexity (1-10).</FormDescription>
-                                </FormItem>
-                            )}
-                        />
-
                         {/* Density Score Slider */}
                         <FormField
                             control={form.control}
@@ -166,7 +138,5 @@ export default function ZoneConfigForm({ defaultValues }: { defaultValues?: Part
                         <Button type="submit" className="w-full">Save Configuration</Button>
                     </form>
                 </Form>
-            </CardContent>
-        </Card>
     );
 }

@@ -1,137 +1,158 @@
-"use client";
+"use client"
 
-import React from "react";
-import AlertBanner from "@/components/dashboard/AlertBanner";
-import ZoneHeatmap from "@/components/dashboard/ZoneHeatmap";
-import ZoneCard from "@/components/dashboard/ZoneCard";
-import IncidentPanel from "@/components/dashboard/IncidentPanel";
-import DeploymentMap from "@/components/dashboard/DeploymentMap";
-import RosterTable from "@/components/dashboard/RosterTable";
-import ZoneDistribution from "@/components/charts/ZoneDistribution";
-//import FatigueTrend from "@/components/charts/FatigueTrend";
+import Link from "next/link"
+import { ShieldCheck, Activity, Users, Map, ArrowRight } from "lucide-react"
 
-// Import Forms for testing
-import ZoneConfigForm from "@/components/forms/ZoneConfigForm";
-import SystemSettingsForm from "@/components/forms/SystemSettingsForm";
-import PersonnelForm from "@/components/forms/PersonnelForm";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-// --- MOCK DATA ---
-const mockZones: any[] = [
-  { _id: "1", name: "Red Fort Zone", code: "Z01", densityScore: 9, currentDeployment: 120, safeThreshold: 150, zScore: 0.95, heatmapColor: "red", centroid: { coordinates: [77.2410, 28.6562] } },
-  { _id: "2", name: "Connaught Place", code: "Z02", densityScore: 7, currentDeployment: 80, safeThreshold: 80, zScore: 0.5, heatmapColor: "yellow", centroid: { coordinates: [77.2181, 28.6315] } },
-  { _id: "3", name: "India Gate", code: "Z03", densityScore: 4, currentDeployment: 60, safeThreshold: 40, zScore: 0.2, heatmapColor: "green", centroid: { coordinates: [77.2295, 28.6129] } },
-  { _id: "4", name: "Karol Bagh", code: "Z04", densityScore: 6, currentDeployment: 90, safeThreshold: 100, zScore: 0.6, heatmapColor: "orange", centroid: { coordinates: [77.1906, 28.6520] } },
-];
-
-const mockChartData = [
-  { name: "Z01", current: 120, required: 150 },
-  { name: "Z02", current: 80, required: 80 },
-  { name: "Z03", current: 60, required: 40 },
-  { name: "Z04", current: 90, required: 100 },
-];
-
-const mockFatigueData = [
-  { date: "Mon", averageScore: 2.5, criticalCount: 2 },
-  { date: "Tue", averageScore: 3.0, criticalCount: 5 },
-  { date: "Wed", averageScore: 4.2, criticalCount: 8 },
-  { date: "Thu", averageScore: 3.8, criticalCount: 6 },
-  { date: "Fri", averageScore: 6.5, criticalCount: 15 },
-  { date: "Sat", averageScore: 7.2, criticalCount: 20 },
-  { date: "Sun", averageScore: 5.0, criticalCount: 10 },
-];
-
-const mockRoster = [
-  {
-    date: new Date(),
-    shifts: {
-      morning: [{ status: 'Scheduled', officerName: 'Insp. Sharma' }, { status: 'Empty' }],
-      evening: [{ status: 'Fatigue_Warning', officerName: 'HC Singh' }, { status: 'Scheduled', officerName: 'Cst. Kumar' }],
-      night: [{ status: 'Leave', officerName: 'SI Verma' }, { status: 'Empty' }]
-    }
-  }
-] as any[]; // Simplified casting for test
-
-export default function DashboardPage() {
+export default function HomePage() {
   return (
-    <div className="p-6 space-y-8 bg-slate-50 dark:bg-slate-950 min-h-screen">
+    <main className="min-h-screen bg-background text-foreground flex flex-col">
 
-      {/* 1. Header & Alerts */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight mb-4">Operation Sentinel: Control Room</h1>
-        <AlertBanner
-          type="critical"
-          title="Force Deficit Detected"
-          message="Zone Z01 (Red Fort) is operating at 80% of required strength. Immediate redistribution recommended."
-        />
+      {/* ================= NAVBAR ================= */}
+      <header className="w-full border-b bg-background/70 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+
+          <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+            <ShieldCheck className="h-6 w-6 text-primary" />
+            Operation Sentinel
+          </h1>
+
+          <Link
+            href="/login"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+          >
+            Enter Control System
+          </Link>
+
+        </div>
+      </header>
+
+      {/* ================= HERO ================= */}
+      <section className="flex-1 flex items-center justify-center px-6">
+
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+
+          {/* LEFT */}
+          <div className="space-y-6 text-center lg:text-left">
+
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
+              Intelligent Police
+              <span className="text-primary block">
+                Deployment Control Room
+              </span>
+            </h2>
+
+            <p className="text-muted-foreground text-lg max-w-xl mx-auto lg:mx-0">
+              Operation Sentinel enables centralized monitoring,
+              dynamic personnel deployment, fatigue-aware scheduling,
+              and real-time incident response across large-scale events
+              and city-wide operations.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+
+              <Link
+                href="/login"
+                className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
+              >
+                Enter Control Room
+                <ArrowRight size={18} />
+              </Link>
+
+              <a
+                href="#features"
+                className="px-6 py-3 rounded-xl border hover:bg-muted transition"
+              >
+                Learn More
+              </a>
+
+            </div>
+          </div>
+
+          {/* RIGHT VISUAL */}
+          <div className="hidden lg:flex justify-center">
+            <div className="relative w-[420px] h-[420px] rounded-2xl border bg-card shadow-xl flex items-center justify-center">
+              <ShieldCheck size={120} className="text-primary opacity-80" />
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ================= FEATURES ================= */}
+      <section
+        id="features"
+        className="py-20 px-6 bg-muted/30"
+      >
+        <div className="max-w-7xl mx-auto">
+
+          <h3 className="text-3xl font-bold text-center mb-14">
+            Control System Capabilities
+          </h3>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+
+            <FeatureCard
+              icon={<Map />}
+              title="Zone Intelligence"
+              desc="Real-time threat heatmaps and geospatial deployment visualization."
+            />
+
+            <FeatureCard
+              icon={<Users />}
+              title="Personnel Management"
+              desc="Fatigue-aware officer allocation and hierarchy enforcement."
+            />
+
+            <FeatureCard
+              icon={<Activity />}
+              title="Incident Response"
+              desc="Dynamic redistribution using adjacency & reserve pooling."
+            />
+
+            <FeatureCard
+              icon={<ShieldCheck />}
+              title="Central Command"
+              desc="Unified control dashboard for macro & micro scale operations."
+            />
+
+          </div>
+        </div>
+      </section>
+
+      {/* ================= FOOTER ================= */}
+      <footer className="border-t py-6 text-center text-sm text-muted-foreground">
+        © {new Date().getFullYear()} Operation Sentinel • Control Room System
+      </footer>
+
+    </main>
+  )
+}
+
+
+/* ================= FEATURE CARD ================= */
+
+function FeatureCard({
+  icon,
+  title,
+  desc
+}: {
+  icon: React.ReactNode
+  title: string
+  desc: string
+}) {
+  return (
+    <div className="p-6 rounded-xl border bg-card hover:shadow-lg transition space-y-4">
+
+      <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
+        {icon}
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Strategic Overview</TabsTrigger>
-          <TabsTrigger value="configuration">System Configuration (Forms)</TabsTrigger>
-        </TabsList>
+      <h4 className="font-semibold text-lg">{title}</h4>
 
-        {/* --- TAB 1: DASHBOARD VISUALIZATION --- */}
-        <TabsContent value="overview" className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {desc}
+      </p>
 
-          {/* Top Row: Map & Incident Panel */}
-          <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-            <div className="lg:col-span-5 border rounded-lg bg-white shadow-sm">
-              <DeploymentMap zones={mockZones} />
-            </div>
-            <div className="lg:col-span-2 space-y-4">
-              <ZoneHeatmap zones={mockZones} />
-              <IncidentPanel zones={mockZones} />
-            </div>
-          </div>
-
-          {/* Middle Row: Zone Cards */}
-          <h2 className="text-xl font-semibold mt-6">Zone Status</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {mockZones.map((zone) => (
-              <ZoneCard key={zone._id} zone={zone} />
-            ))}
-          </div>
-
-          {/* Bottom Row: Charts & Roster */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-            <ZoneDistribution data={mockChartData} />
-            {/* <FatigueTrend data={mockFatigueData} /> */}
-          </div>
-
-          <div className="mt-6">
-            <h2 className="text-xl font-semibold mb-2">Upcoming Roster</h2>
-            <RosterTable schedule={mockRoster} />
-          </div>
-        </TabsContent>
-
-        {/* --- TAB 2: FORMS TESTING --- */}
-        <TabsContent value="configuration">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
-            {/* Test Zone Config Form */}
-            <div className="space-y-2">
-              <h3 className="font-bold text-lg">1. Edit Zone</h3>
-              <ZoneConfigForm defaultValues={{ name: "Red Fort", code: "Z01", sizeScore: 8, densityScore: 9 }} />
-            </div>
-
-            {/* Test Personnel Form */}
-            <div className="space-y-2">
-              <h3 className="font-bold text-lg">2. Add Personnel</h3>
-              <PersonnelForm />
-            </div>
-
-            {/* Test System Settings Form */}
-            <div className="space-y-2">
-              <h3 className="font-bold text-lg">3. Algorithm Weights</h3>
-              <SystemSettingsForm />
-            </div>
-
-          </div>
-        </TabsContent>
-      </Tabs>
     </div>
-  );
+  )
 }
