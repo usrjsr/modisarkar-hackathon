@@ -104,7 +104,33 @@ export default function ZoneConfigForm({ defaultValues }: { defaultValues?: Part
                                             max={10}
                                             step={1}
                                             defaultValue={[field.value]}
-                                            onValueChange={(vals) => field.onChange(vals[0])}
+                                            // Added ": number[]" to fix the error
+                                            onValueChange={(vals: number[]) => field.onChange(vals[0])}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>Geographical area complexity (1-10).</FormDescription>
+                                </FormItem>
+                            )}
+                        />
+                        {/* Density Score Slider */}
+                        {/* Size Score Slider */}
+                        <FormField
+                            control={form.control}
+                            name="sizeScore"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <div className="flex justify-between items-center">
+                                        <FormLabel>Size Score (S)</FormLabel>
+                                        <span className="text-sm font-bold text-blue-600">{field.value}</span>
+                                    </div>
+                                    <FormControl>
+                                        <Slider
+                                            min={1}
+                                            max={10}
+                                            step={1}
+                                            defaultValue={[field.value]}
+                                            // FIX: Add ": number[]" type annotation here
+                                            onValueChange={(vals: number[]) => field.onChange(vals[0])}
                                         />
                                     </FormControl>
                                     <FormDescription>Geographical area complexity (1-10).</FormDescription>
@@ -128,7 +154,8 @@ export default function ZoneConfigForm({ defaultValues }: { defaultValues?: Part
                                             max={10}
                                             step={1}
                                             defaultValue={[field.value]}
-                                            onValueChange={(vals) => field.onChange(vals[0])}
+                                            // FIX: Add ": number[]" type annotation here
+                                            onValueChange={(vals: number[]) => field.onChange(vals[0])}
                                         />
                                     </FormControl>
                                     <FormDescription>Population density and threat level (1-10).</FormDescription>
