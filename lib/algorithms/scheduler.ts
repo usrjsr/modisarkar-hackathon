@@ -1,4 +1,4 @@
-import { SHIFT_NAMES, SHIFTS, SHIFT_SEQUENCE } from '../constants/shifts';
+import { SHIFTS, SHIFT_SEQUENCE } from '../constants/shifts';
 import { STANDBY_POOL_PERCENTAGE, MAX_CONSECUTIVE_NIGHT_SHIFTS } from '../constants/thresholds';
 import { RANK_TO_LEVEL, MIN_ZONE_COMPOSITION, FIELD_DEPLOYABLE_RANKS } from '../constants/ranks';
 import {
@@ -10,13 +10,12 @@ import {
   decayFatigue,
 } from './fatigueCalculator';
 import type { Zone, ZoneAllocation } from '../types/zone';
-import type { Personnel, PersonnelRef } from '../types/personnel';
+import type { Personnel } from '../types/personnel';
 import type { ShiftName } from '../constants/shifts';
 import type {
   RosterDraft,
   DaySchedule,
   ShiftBlock,
-  ShiftDeployment,
   RosterViolation,
   RosterConfigSnapshot,
 } from '../types/roster';
@@ -63,17 +62,13 @@ function isOnLeave(officer: Personnel, date: Date): boolean {
   });
 }
 
-function isAvailableForShift(officer: Personnel, shiftStart: Date, shiftEnd: Date): boolean {
+function isAvailableForShift(officer: Personnel, shiftStart: Date): boolean {
   if (officer.status === 'Unavailable') return false;
   if (isOnLeave(officer, shiftStart)) return false;
   if (!hasCompletedRest(officer, shiftStart)) return false;
   return true;
 }
 
-// Lean: just return the officer ID to avoid massive memory usage
-function toOfficerId(officer: Personnel): string {
-  return officer._id;
-}
 
 function applyFatigueToPool(
   pool: Personnel[],
@@ -125,7 +120,7 @@ function pickOfficersForZone(
       .filter(o =>
         o.rank === rank &&
         !assignedIds.has(o._id) &&
-        isAvailableForShift(o, shiftStart, shiftEnd) &&
+        isAvailableForShift(o, shiftStart) &&
         isEligibleForZone(o, zoneColor)
       )
       .sort((a, b) => a.fatigueScore - b.fatigueScore);
@@ -139,7 +134,7 @@ function pickOfficersForZone(
 
     if (filled < required) {
       const standbyCandidates = standbyPool.filter(
-        o => o.rank === rank && !assignedIds.has(o._id) && isAvailableForShift(o, shiftStart, shiftEnd)
+        o => o.rank === rank && !assignedIds.has(o._id) && isAvailableForShift(o, shiftStart)
       );
       for (const officer of standbyCandidates) {
         if (filled >= required) break;
@@ -169,7 +164,7 @@ function pickOfficersForZone(
     availablePool.filter(o =>
       RANK_TO_LEVEL[o.rank] === 'SectorDuty' &&
       !assignedIds.has(o._id) &&
-      isAvailableForShift(o, shiftStart, shiftEnd)
+      isAvailableForShift(o, shiftStart)
     ),
     zoneColor,
     shiftStart
@@ -210,10 +205,10 @@ function buildShiftBlock(
   globalAssignedIds: Set<string>,
   violations: RosterViolation[],
   dayNumber: number,
-): { block: any; deployedIds: Set<string> } {
+): { block: ShiftBlock; deployedIds: Set<string> } {
   const shiftStart = getShiftStartDate(dayDate, shift);
   const shiftEnd = getShiftEndDate(dayDate, shift);
-  const deployments: any[] = [];
+  const deployments: Record<string, unknown>[] = [];
   const allDeployedIds: Set<string> = new Set();
 
   for (const zone of zones) {
@@ -242,7 +237,7 @@ function buildShiftBlock(
 
     deployments.push({
       zoneId: zone._id,
-      personnelIds: deployedIds,
+      personnel: deployedIds as unknown as import('../types/personnel').PersonnelRef[],
       totalStrength,
       requiredStrength,
       deficit,
@@ -252,14 +247,14 @@ function buildShiftBlock(
 
   // Count standby remaining (don't store full objects)
   const standbyCount = standbyOfficers
-    .filter(o => !allDeployedIds.has(o._id) && isAvailableForShift(o, shiftStart, shiftEnd))
+    .filter(o => !allDeployedIds.has(o._id) && isAvailableForShift(o, shiftStart))
     .length;
 
-  const block = {
+  const block: ShiftBlock = {
     shift,
     startTime: SHIFTS[shift].start,
     endTime: SHIFTS[shift].end,
-    deployments,
+    deployments: deployments as unknown as import('../types/roster').ShiftDeployment[],
     standbyCount,
   };
 

@@ -110,7 +110,11 @@ export async function POST(req: NextRequest) {
       // Deploy personnel to zones based on roster schedule
       for (const dep of currentShiftBlock.deployments) {
         const rawIds = dep.personnel || []
-        const objectIds = rawIds.map((p: any) => new mongoose.Types.ObjectId(typeof p === 'string' ? p : (p._id || p.id).toString()))
+        const objectIds = rawIds.map((p) => {
+          const pObj = p as unknown as Record<string, unknown>
+          const id = typeof p === 'string' ? p : (pObj._id ?? pObj.id ?? pObj.officerId)
+          return new mongoose.Types.ObjectId(String(id))
+        })
         const zoneObjectId = new mongoose.Types.ObjectId(dep.zoneId)
 
         // Update zone's currentDeployment count
@@ -131,15 +135,15 @@ export async function POST(req: NextRequest) {
 
     // ── SAVE: Store only summary data in roster document (no personnelIds) ──
     // This keeps the roster document well under MongoDB's 16MB BSON limit
-    const summarySchedule = draft.schedule.map((day: any) => {
-      const shifts: any = {}
-      for (const [shiftName, shiftBlock] of Object.entries(day.shifts) as any[]) {
+    const summarySchedule = draft.schedule.map((day: { date: Date; dayNumber: number; dayOfWeek: number; shifts: Record<string, { shift: string; startTime: string; endTime: string; standbyCount?: number; deployments: { zoneId: string; totalStrength: number; requiredStrength: number; deficit: number; status: string }[] }> }) => {
+      const shifts: Record<string, unknown> = {}
+      for (const [shiftName, shiftBlock] of Object.entries(day.shifts)) {
         shifts[shiftName] = {
           shift: shiftBlock.shift,
           startTime: shiftBlock.startTime,
           endTime: shiftBlock.endTime,
           standbyCount: shiftBlock.standbyCount ?? 0,
-          deployments: shiftBlock.deployments.map((dep: any) => ({
+          deployments: shiftBlock.deployments.map(dep => ({
             zoneId: dep.zoneId,
             totalStrength: dep.totalStrength,
             requiredStrength: dep.requiredStrength,
@@ -205,11 +209,12 @@ export async function POST(req: NextRequest) {
         totalPersonnel: actualTotalForce,
       },
     }, { status: 201 })
-  } catch (error: any) {
-    console.error('Roster generation error:', error?.message || error)
-    console.error('Stack:', error?.stack)
-    const details = error?.errors ? Object.keys(error.errors).map(k => `${k}: ${error.errors[k].message}`) : []
-    return NextResponse.json({ success: false, error: error?.message || 'Failed to generate roster', details }, { status: 500 })
+  } catch (error: unknown) {
+    const err = error as Record<string, unknown>
+    console.error('Roster generation error:', err?.message || err)
+    console.error('Stack:', err?.stack)
+    const details = err?.errors ? Object.keys(err.errors as object).map(k => `${k}: ${(err.errors as Record<string, { message: string }>)[k]?.message}`) : []
+    return NextResponse.json({ success: false, error: err?.message || 'Failed to generate roster', details }, { status: 500 })
   }
 }
 
@@ -237,7 +242,7 @@ export async function GET(req: NextRequest) {
       .select('-schedule')
 
     return NextResponse.json({ success: true, data: rosters })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch rosters' }, { status: 500 })
   }
 }

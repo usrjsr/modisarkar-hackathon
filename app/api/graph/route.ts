@@ -36,11 +36,11 @@ export async function GET(req: NextRequest) {
     const { zones: hydrated, adjacencyMap, isolated } = buildAndApplyAdjacency(zonesPlain, mode)
 
     const allocations = hydrated.map(z => ({
-      zoneId:        z._id,
-      zScore:        z.zScore ?? 0,
-      allocation:    z.currentDeployment ?? 0,
+      zoneId: z._id,
+      zScore: z.zScore ?? 0,
+      allocation: z.currentDeployment ?? 0,
       safeThreshold: z.safeThreshold ?? 0,
-      heatmapColor:  z.heatmapColor ?? 'green',
+      heatmapColor: z.heatmapColor ?? 'green',
     }))
 
     const { centrality, networkHealth } = runFullNetworkAnalysis(
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
         mode,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch graph data' }, { status: 500 })
   }
 }
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { action, mode = 'macro' } = body
 
-    const allZones   = await ZoneModel.find({ isActive: true })
+    const allZones = await ZoneModel.find({ isActive: true })
     const zonesPlain = allZones.map(z => z.toObject()) as Zone[]
 
     const { zones: hydrated, adjacencyMap } = buildAndApplyAdjacency(
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (action === 'rebuild') {
       for (const hz of hydrated) {
         await ZoneModel.findByIdAndUpdate(hz._id, {
-          adjacency:      hz.adjacency,
+          adjacency: hz.adjacency,
           distanceMatrix: hz.distanceMatrix,
           $inc: { version: 1 },
         })
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          message:       `Adjacency rebuilt for ${hydrated.length} zones`,
+          message: `Adjacency rebuilt for ${hydrated.length} zones`,
           isolatedZones: isolated.map(z => ({ id: z._id, name: z.name })),
           mode,
         },
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
       const snapshots: ZoneSnapshot[] = hydrated.map(z => ({
         zone,
         currentDeployment: z.currentDeployment ?? 0,
-        safeThreshold:     z.safeThreshold ?? 0,
+        safeThreshold: z.safeThreshold ?? 0,
       }))
 
       const safeThresholds = new Map(
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
       { success: false, error: 'Invalid action. Use: rebuild, shortest_path, within_travel_time, ranked_neighbours' },
       { status: 400 }
     )
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Graph operation failed' }, { status: 500 })
   }
 }

@@ -179,7 +179,7 @@ export default function ZoneLeafletMap({
                 mapRef.current = null
             }
         }
-    }, [zones])
+    }, [zones, onZoneClick])
 
     return (
         <div className="relative">

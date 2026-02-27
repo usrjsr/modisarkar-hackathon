@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: 'Officer not found' }, { status: 404 })
     }
 
-    const overlapping = officer.leavePeriods.some((lp: any) => {
+    const overlapping = officer.leavePeriods.some((lp: { startDate: string | Date; endDate: string | Date }) => {
       const lpStart = new Date(lp.startDate)
       const lpEnd = new Date(lp.endDate)
       return start <= lpEnd && end >= lpStart
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
         const deployedInZone = await PersonnelModel.find({
           _id: {
-            $in: deployment.personnel.map((p: any) => p.officerId),
+            $in: deployment.personnel.map((p: { officerId: string }) => p.officerId),
           },
         })
 
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         for (const zone of zonesPlain) {
           const dep = allDeployments.find(d => d.zoneId.toString() === zone._id)
           const officers: Personnel[] = dep
-            ? dep.personnel.map((p: any) => p.officerId).filter(Boolean)
+            ? dep.personnel.map((p: { officerId: string }) => p.officerId).filter(Boolean)
             : []
           deployedPersonnel.set(zone._id, officers)
 
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           : 'Leave approved. No active deployments affected.',
       },
     }, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to process leave request' }, { status: 500 })
   }
 }
@@ -244,7 +244,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     }
 
     const leave = officer.leavePeriods.find(
-      (lp: any) => lp._id.toString() === leaveId
+      (lp: { _id: { toString: () => string } }) => lp._id.toString() === leaveId
     )
 
     if (!leave) {
@@ -272,7 +272,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       success: true,
       message: 'Leave period cancelled successfully',
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to cancel leave' }, { status: 500 })
   }
 }

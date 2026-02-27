@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     return NextResponse.json({ success: true, data: officer })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch officer' }, { status: 500 })
   }
 }
@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .populate('currentZone', 'name code')
 
     return NextResponse.json({ success: true, data: updated })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to update officer' }, { status: 500 })
   }
 }
@@ -96,7 +96,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     })
 
     return NextResponse.json({ success: true, message: 'Officer marked as unavailable' })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to remove officer' }, { status: 500 })
   }
 }

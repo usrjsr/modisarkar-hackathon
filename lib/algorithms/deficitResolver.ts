@@ -1,4 +1,4 @@
-import { MAX_SIPHON_FRACTION, SAFE_THRESHOLD_FRACTION } from '../constants/thresholds';
+import { MAX_SIPHON_FRACTION } from '../constants/thresholds';
 import { FATIGUE_WEIGHTS } from '../constants/thresholds';
 import { calculateDeficit, recalculateZoneScore } from './proportionalDistributor';
 import { isEligibleForZone, hasCompletedRest } from './fatigueCalculator';
@@ -16,56 +16,56 @@ export type ResolutionMethod =
   | 'Failed';
 
 export interface ResolutionStep {
-  step:         'A' | 'B' | 'C';
-  action:       string;
-  troopsMoved:  number;
-  sourceZones:  string[];   // Zone _ids
-  timestamp:    Date;
+  step: 'A' | 'B' | 'C';
+  action: string;
+  troopsMoved: number;
+  sourceZones: string[];   // Zone _ids
+  timestamp: Date;
 }
 
 export interface IncidentInput {
   // The zone that had a density spike
-  affectedZone:        Zone;
-  newDensityScore:     number;
+  affectedZone: Zone;
+  newDensityScore: number;
 
   // Current shift context
-  shift:               ShiftName;
-  shiftStart:          Date;
+  shift: ShiftName;
+  shiftStart: Date;
 
   // All zones + their current deployment state
-  allZoneSnapshots:    ZoneSnapshot[];
-  allAllocations:      ZoneAllocation[];
+  allZoneSnapshots: ZoneSnapshot[];
+  allAllocations: ZoneAllocation[];
 
   // All personnel currently deployed or on standby this shift
-  deployedPersonnel:   Map<string, Personnel[]>;  // zoneId → deployed officers
-  standbyPool:         Personnel[];               // Global 15% reserve
+  deployedPersonnel: Map<string, Personnel[]>;  // zoneId → deployed officers
+  standbyPool: Personnel[];               // Global 15% reserve
 
   // Weights for Z-score recalculation
-  weights:             { w_s: number; w_d: number };
+  weights: { w_s: number; w_d: number };
 }
 
 export interface ResolutionResult {
-  affectedZoneId:   string;
-  originalDensity:  number;
-  newDensity:       number;
-  newZScore:        number;
-  deltaT:           number;           // Troops needed
-  steps:            ResolutionStep[];
-  status:           ResolutionMethod;
-  troopsResolved:   number;           // How many of deltaT we filled
+  affectedZoneId: string;
+  originalDensity: number;
+  newDensity: number;
+  newZScore: number;
+  deltaT: number;           // Troops needed
+  steps: ResolutionStep[];
+  status: ResolutionMethod;
+  troopsResolved: number;           // How many of deltaT we filled
   remainingDeficit: number;           // 0 if fully resolved
-  movedPersonnel:   PersonnelRef[];   // Officers actually moved
-  warningMessage:   string | null;
+  movedPersonnel: PersonnelRef[];   // Officers actually moved
+  warningMessage: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toPersonnelRef(officer: Personnel, deployedAt: Date): PersonnelRef {
   return {
-    officerId:           officer._id,
-    rank:                officer.rank,
-    role:                'EmergencyRedeploy',
-    isReserve:           false,
+    officerId: officer._id,
+    rank: officer.rank,
+    role: 'EmergencyRedeploy',
+    isReserve: false,
     deployedAt,
     fatigueAtDeployment: officer.fatigueScore,
   };
@@ -80,8 +80,8 @@ function getSurplus(snapshot: ZoneSnapshot): number {
 }
 
 function getAdjacentSnapshots(
-  affectedZone:     Zone,
-  allSnapshots:     ZoneSnapshot[],
+  affectedZone: Zone,
+  allSnapshots: ZoneSnapshot[],
 ): ZoneSnapshot[] {
   return allSnapshots.filter(
     s => s.zone._id !== affectedZone._id && affectedZone.adjacency.includes(s.zone._id)
@@ -89,11 +89,11 @@ function getAdjacentSnapshots(
 }
 
 function pickOfficersFromZone(
-  sourceSnapshot:   ZoneSnapshot,
-  deployedMap:      Map<string, Personnel[]>,
-  count:            number,
-  zoneColor:        ZoneAllocation['heatmapColor'],
-  shiftStart:       Date,
+  sourceSnapshot: ZoneSnapshot,
+  deployedMap: Map<string, Personnel[]>,
+  count: number,
+  zoneColor: ZoneAllocation['heatmapColor'],
+  shiftStart: Date,
 ): Personnel[] {
   const available = (deployedMap.get(sourceSnapshot.zone._id) ?? [])
     .filter(o =>
@@ -108,37 +108,36 @@ function pickOfficersFromZone(
 // ─── Step A: Adjacent Zone Pooling ───────────────────────────────────────────
 
 function stepA_adjacentPooling(
-  needed:          number,
-  affectedZone:    Zone,
+  needed: number,
+  affectedZone: Zone,
   newHeatmapColor: ZoneAllocation['heatmapColor'],
-  allSnapshots:    ZoneSnapshot[],
-  deployedMap:     Map<string, Personnel[]>,
-  shiftStart:      Date,
+  allSnapshots: ZoneSnapshot[],
+  deployedMap: Map<string, Personnel[]>,
+  shiftStart: Date,
 ): {
-  resolved:      number;
-  moved:         PersonnelRef[];
-  sourceZones:   string[];
-  updatedMap:    Map<string, Personnel[]>;
+  resolved: number;
+  moved: PersonnelRef[];
+  sourceZones: string[];
+  updatedMap: Map<string, Personnel[]>;
 } {
   const adjacentSnapshots = getAdjacentSnapshots(affectedZone, allSnapshots)
     // Only pull from green/yellow zones (low density) — don't strip already stressed zones
     .filter(s => {
-      const alloc = allSnapshots.find(a => a.zone._id === s.zone._id);
       return getSurplus(s) > 0;
     })
     // Prioritise zones with most surplus
     .sort((a, b) => getSurplus(b) - getSurplus(a));
 
-  let resolved    = 0;
-  const moved:    PersonnelRef[] = [];
-  const sources:  string[]       = [];
+  let resolved = 0;
+  const moved: PersonnelRef[] = [];
+  const sources: string[] = [];
   const updatedMap = new Map(deployedMap);
 
   for (const neighbor of adjacentSnapshots) {
     if (resolved >= needed) break;
 
-    const surplus    = getSurplus(neighbor);
-    const maxSiphon  = Math.min(
+    const surplus = getSurplus(neighbor);
+    const maxSiphon = Math.min(
       Math.floor(neighbor.currentDeployment * MAX_SIPHON_FRACTION),
       surplus,
       needed - resolved
@@ -158,7 +157,7 @@ function stepA_adjacentPooling(
 
     // Remove from source zone
     const sourceDeployed = updatedMap.get(neighbor.zone._id) ?? [];
-    const pickedIds      = new Set(picked.map(o => o._id));
+    const pickedIds = new Set(picked.map(o => o._id));
     updatedMap.set(
       neighbor.zone._id,
       sourceDeployed.filter(o => !pickedIds.has(o._id))
@@ -179,14 +178,14 @@ function stepA_adjacentPooling(
 // ─── Step B: Global Reserve Pooling ──────────────────────────────────────────
 
 function stepB_globalReserve(
-  needed:          number,
+  needed: number,
   newHeatmapColor: ZoneAllocation['heatmapColor'],
-  standbyPool:     Personnel[],
-  shiftStart:      Date,
+  standbyPool: Personnel[],
+  shiftStart: Date,
 ): {
-  resolved:    number;
-  moved:       PersonnelRef[];
-  remaining:   Personnel[];  // Standby pool after extraction
+  resolved: number;
+  moved: PersonnelRef[];
+  remaining: Personnel[];  // Standby pool after extraction
 } {
   const candidates = standbyPool
     .filter(o =>
@@ -195,7 +194,7 @@ function stepB_globalReserve(
     )
     .sort((a, b) => a.fatigueScore - b.fatigueScore);
 
-  const picked  = candidates.slice(0, needed);
+  const picked = candidates.slice(0, needed);
   const pickedIds = new Set(picked.map(o => o._id));
 
   picked.forEach(o => {
@@ -203,8 +202,8 @@ function stepB_globalReserve(
   });
 
   return {
-    resolved:  picked.length,
-    moved:     picked.map(o => toPersonnelRef(o, shiftStart)),
+    resolved: picked.length,
+    moved: picked.map(o => toPersonnelRef(o, shiftStart)),
     remaining: standbyPool.filter(o => !pickedIds.has(o._id)),
   };
 }
@@ -213,11 +212,11 @@ function stepB_globalReserve(
 
 function stepC_escalation(remainingDeficit: number, zoneId: string): ResolutionStep {
   return {
-    step:        'C',
-    action:      `CRITICAL ALERT — Zone ${zoneId} has an unresolved deficit of ${remainingDeficit} officers. Manual override required. Adjacent zones and global reserve exhausted.`,
+    step: 'C',
+    action: `CRITICAL ALERT — Zone ${zoneId} has an unresolved deficit of ${remainingDeficit} officers. Manual override required. Adjacent zones and global reserve exhausted.`,
     troopsMoved: 0,
     sourceZones: [],
-    timestamp:   new Date(),
+    timestamp: new Date(),
   };
 }
 
@@ -227,7 +226,6 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
   const {
     affectedZone,
     newDensityScore,
-    shift,
     shiftStart,
     allZoneSnapshots,
     allAllocations,
@@ -236,11 +234,11 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
     weights,
   } = input;
 
-  const steps:        ResolutionStep[] = [];
-  const movedAll:     PersonnelRef[]   = [];
+  const steps: ResolutionStep[] = [];
+  const movedAll: PersonnelRef[] = [];
 
   // ── Recalculate Z-score + deficit ─────────────────────────────────────────
-  const { zScore :newZScore, heatmapColor: newHeatmapColor } = recalculateZoneScore(
+  const { zScore: newZScore, heatmapColor: newHeatmapColor } = recalculateZoneScore(
     affectedZone.sizeScore,
     newDensityScore,
     weights,
@@ -248,7 +246,7 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
 
   const currentDeployment = (deployedPersonnel.get(affectedZone._id) ?? []).length;
 
-  const { newRequirement, delta } = calculateDeficit(
+  const { delta } = calculateDeficit(
     affectedZone,
     newDensityScore,
     currentDeployment,
@@ -259,23 +257,23 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
   // No deficit — density spike didn't require more troops
   if (delta <= 0) {
     return {
-      affectedZoneId:   affectedZone._id,
-      originalDensity:  affectedZone.densityScore,
-      newDensity:       newDensityScore,
+      affectedZoneId: affectedZone._id,
+      originalDensity: affectedZone.densityScore,
+      newDensity: newDensityScore,
       newZScore,
-      deltaT:           delta,
-      steps:            [],
-      status:           'Resolved',
-      troopsResolved:   0,
+      deltaT: delta,
+      steps: [],
+      status: 'Resolved',
+      troopsResolved: 0,
       remainingDeficit: 0,
-      movedPersonnel:   [],
-      warningMessage:   null,
+      movedPersonnel: [],
+      warningMessage: null,
     };
   }
 
   let remaining = delta;
   let updatedDeployedMap = new Map(deployedPersonnel);
-  let updatedStandby     = [...standbyPool];
+  let updatedStandby = [...standbyPool];
 
   // ── Step A ────────────────────────────────────────────────────────────────
   const resultA = stepA_adjacentPooling(
@@ -293,27 +291,27 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
     remaining -= resultA.resolved;
 
     steps.push({
-      step:        'A',
-      action:      `Siphoned ${resultA.resolved} officers from adjacent zones: ${resultA.sourceZones.join(', ')}.`,
+      step: 'A',
+      action: `Siphoned ${resultA.resolved} officers from adjacent zones: ${resultA.sourceZones.join(', ')}.`,
       troopsMoved: resultA.resolved,
       sourceZones: resultA.sourceZones,
-      timestamp:   new Date(),
+      timestamp: new Date(),
     });
   }
 
   if (remaining <= 0) {
     return {
-      affectedZoneId:   affectedZone._id,
-      originalDensity:  affectedZone.densityScore,
-      newDensity:       newDensityScore,
+      affectedZoneId: affectedZone._id,
+      originalDensity: affectedZone.densityScore,
+      newDensity: newDensityScore,
       newZScore,
-      deltaT:           delta,
+      deltaT: delta,
       steps,
-      status:           'AdjacentPool',
-      troopsResolved:   delta,
+      status: 'AdjacentPool',
+      troopsResolved: delta,
       remainingDeficit: 0,
-      movedPersonnel:   movedAll,
-      warningMessage:   null,
+      movedPersonnel: movedAll,
+      warningMessage: null,
     };
   }
 
@@ -331,27 +329,27 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
     remaining -= resultB.resolved;
 
     steps.push({
-      step:        'B',
-      action:      `Pulled ${resultB.resolved} officers from global reserve pool.`,
+      step: 'B',
+      action: `Pulled ${resultB.resolved} officers from global reserve pool.`,
       troopsMoved: resultB.resolved,
       sourceZones: ['GLOBAL_RESERVE'],
-      timestamp:   new Date(),
+      timestamp: new Date(),
     });
   }
 
   if (remaining <= 0) {
     return {
-      affectedZoneId:   affectedZone._id,
-      originalDensity:  affectedZone.densityScore,
-      newDensity:       newDensityScore,
+      affectedZoneId: affectedZone._id,
+      originalDensity: affectedZone.densityScore,
+      newDensity: newDensityScore,
       newZScore,
-      deltaT:           delta,
+      deltaT: delta,
       steps,
-      status:           'GlobalReserve',
-      troopsResolved:   delta,
+      status: 'GlobalReserve',
+      troopsResolved: delta,
       remainingDeficit: 0,
-      movedPersonnel:   movedAll,
-      warningMessage:   `Global reserve partially depleted. ${updatedStandby.length} officers remaining in standby.`,
+      movedPersonnel: movedAll,
+      warningMessage: `Global reserve partially depleted. ${updatedStandby.length} officers remaining in standby.`,
     };
   }
 
@@ -359,17 +357,17 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
   steps.push(stepC_escalation(remaining, affectedZone._id));
 
   return {
-    affectedZoneId:   affectedZone._id,
-    originalDensity:  affectedZone.densityScore,
-    newDensity:       newDensityScore,
+    affectedZoneId: affectedZone._id,
+    originalDensity: affectedZone.densityScore,
+    newDensity: newDensityScore,
     newZScore,
-    deltaT:           delta,
+    deltaT: delta,
     steps,
-    status:           'Escalation',
-    troopsResolved:   delta - remaining,
+    status: 'Escalation',
+    troopsResolved: delta - remaining,
     remainingDeficit: remaining,
-    movedPersonnel:   movedAll,
-    warningMessage:   `CRITICAL — ${remaining} officers still needed at Zone ${affectedZone.name}. Manual override required.`,
+    movedPersonnel: movedAll,
+    warningMessage: `CRITICAL — ${remaining} officers still needed at Zone ${affectedZone.name}. Manual override required.`,
   };
 }
 
@@ -377,30 +375,27 @@ export function resolveIncident(input: IncidentInput): ResolutionResult {
 // Called when 10% of a zone's force marks themselves on leave before a shift
 
 export interface AbsencePatchInput {
-  affectedZone:     Zone;
-  absentOfficers:   Personnel[];
-  shift:            ShiftName;
-  shiftStart:       Date;
+  affectedZone: Zone;
+  absentOfficers: Personnel[];
+  shift: ShiftName;
+  shiftStart: Date;
   allZoneSnapshots: ZoneSnapshot[];
-  allAllocations:   ZoneAllocation[];
+  allAllocations: ZoneAllocation[];
   deployedPersonnel: Map<string, Personnel[]>;
-  standbyPool:      Personnel[];
-  weights:          { w_s: number; w_d: number };
+  standbyPool: Personnel[];
+  weights: { w_s: number; w_d: number };
 }
 
 export function patchMassAbsence(input: AbsencePatchInput): ResolutionResult {
-  const currentDeployment = (input.deployedPersonnel.get(input.affectedZone._id) ?? []).length;
-  const absentCount       = input.absentOfficers.length;
-
   // Treat absence as a synthetic density spike — same resolution cascade
   // We don't change D, we just treat the deficit as the absent headcount
   return resolveIncident({
-    affectedZone:      input.affectedZone,
-    newDensityScore:   input.affectedZone.densityScore, // D unchanged
-    shift:             input.shift,
-    shiftStart:        input.shiftStart,
-    allZoneSnapshots:  input.allZoneSnapshots,
-    allAllocations:    input.allAllocations,
+    affectedZone: input.affectedZone,
+    newDensityScore: input.affectedZone.densityScore, // D unchanged
+    shift: input.shift,
+    shiftStart: input.shiftStart,
+    allZoneSnapshots: input.allZoneSnapshots,
+    allAllocations: input.allAllocations,
     deployedPersonnel: new Map(
       Array.from(input.deployedPersonnel.entries()).map(([zoneId, officers]) =>
         zoneId === input.affectedZone._id
@@ -409,6 +404,6 @@ export function patchMassAbsence(input: AbsencePatchInput): ResolutionResult {
       )
     ),
     standbyPool: input.standbyPool,
-    weights:     input.weights,
+    weights: input.weights,
   });
 }

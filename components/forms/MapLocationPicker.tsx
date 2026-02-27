@@ -68,7 +68,7 @@ export default function MapLocationPicker({ latitude, longitude, onChange }: Map
                 mapRef.current = null
             }
         }
-    }, [])
+    }, [latitude, longitude, onChange])
 
     return (
         <div className="space-y-2">

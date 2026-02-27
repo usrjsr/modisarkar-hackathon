@@ -110,7 +110,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const personnelPlain = availablePersonnel.map(p => p.toObject()) as Personnel[]
     const sorted = sortByEligibility(personnelPlain, zoneAllocation.heatmapColor, shiftStart)
 
-    const deployed: any[] = []
+    const deployed: Record<string, unknown>[] = []
     const assignedIds = new Set<string>()
 
     const compositionRanks = Object.keys(MIN_ZONE_COMPOSITION) as Array<keyof typeof MIN_ZONE_COMPOSITION>
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         violations: distribution.violations,
       },
     }, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to create deployment' }, { status: 500 })
   }
 }
@@ -215,7 +215,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .limit(90)
 
     return NextResponse.json({ success: true, data: deployments })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch deployments' }, { status: 500 })
   }
 }

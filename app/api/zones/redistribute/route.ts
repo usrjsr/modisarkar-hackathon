@@ -63,16 +63,16 @@ export async function POST(req: NextRequest) {
     for (const zone of zonesPlain) {
       const deployment = allDeployments.find(d => d.zoneId.toString() === zone._id)
       const officers: Personnel[] = deployment
-        ? deployment.personnel.map((p: any) => p.officerId).filter(Boolean)
+        ? deployment.personnel.map((p: Record<string, unknown>) => p.officerId).filter(Boolean)
         : []
       deployedPersonnel.set(zone._id, officers)
 
       allAllocations.push({
-        zoneId:        zone._id,
-        zScore:        zone.zScore ?? 0,
-        allocation:    zone.currentDeployment ?? 0,
+        zoneId: zone._id,
+        zScore: zone.zScore ?? 0,
+        allocation: zone.currentDeployment ?? 0,
         safeThreshold: zone.safeThreshold ?? 0,
-        heatmapColor:  zone.heatmapColor ?? 'green',
+        heatmapColor: zone.heatmapColor ?? 'green',
       })
     }
 
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     const allZoneSnapshots: ZoneSnapshot[] = zonesPlain.map(zone => ({
       zone,
       currentDeployment: deployedPersonnel.get(zone._id)?.length ?? 0,
-      safeThreshold:     zone.safeThreshold ?? 0,
+      safeThreshold: zone.safeThreshold ?? 0,
     }))
 
     const result = resolveIncident({
@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
       currentDeployment: (deployedPersonnel.get(zoneId)?.length ?? 0) + result.troopsResolved,
       heatmapColor: result.newZScore >= 7.5 ? 'red'
         : result.newZScore >= 5 ? 'orange'
-        : result.newZScore >= 2.5 ? 'yellow'
-        : 'green',
+          : result.newZScore >= 2.5 ? 'yellow'
+            : 'green',
       $inc: { version: 1 },
     })
 
@@ -147,16 +147,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        status:           result.status,
-        deltaT:           result.deltaT,
-        troopsResolved:   result.troopsResolved,
+        status: result.status,
+        deltaT: result.deltaT,
+        troopsResolved: result.troopsResolved,
         remainingDeficit: result.remainingDeficit,
-        steps:            result.steps,
-        warningMessage:   result.warningMessage,
-        movedPersonnel:   result.movedPersonnel,
+        steps: result.steps,
+        warningMessage: result.warningMessage,
+        movedPersonnel: result.movedPersonnel,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Redistribution failed' }, { status: 500 })
   }
 }

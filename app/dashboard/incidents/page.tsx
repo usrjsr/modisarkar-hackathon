@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useState, useEffect } from "react"
@@ -71,8 +72,8 @@ export default function IncidentsPage() {
           status: "Normal"
         })))
       }
-    } catch (err) {
-      console.error('Failed to fetch zones:', err)
+    } catch {
+      console.error('Failed to fetch zones')
     } finally {
       setLoading(false)
     }
@@ -120,7 +121,7 @@ export default function IncidentsPage() {
       } else {
         alert(result.error || 'Failed to trigger incident')
       }
-    } catch (err) {
+    } catch {
       alert('Error triggering incident')
     }
   }

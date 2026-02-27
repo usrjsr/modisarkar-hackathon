@@ -8,10 +8,18 @@ const getMongoUri = () => {
   return uri
 }
 
-let cached = (global as any).mongoose
+declare global {
+
+  var mongoose: {
+    conn: typeof import("mongoose") | null;
+    promise: Promise<typeof import("mongoose")> | null;
+  }
+}
+
+let cached = global.mongoose;
 
 if (!cached) {
-  cached = (global as any).mongoose = {
+  cached = global.mongoose = {
     conn: null,
     promise: null
   }

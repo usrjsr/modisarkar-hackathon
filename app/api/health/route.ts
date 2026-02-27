@@ -33,7 +33,7 @@ export async function GET() {
       DeploymentModel.countDocuments({
         date: {
           $gte: new Date(new Date().toDateString()),
-          $lt:  new Date(new Date().setDate(new Date().getDate() + 1)),
+          $lt: new Date(new Date().setDate(new Date().getDate() + 1)),
         },
         status: { $in: ['Active', 'Scheduled'] },
       }),
@@ -59,33 +59,33 @@ export async function GET() {
     const status = warnings.length === 0 ? 'healthy' : warnings.length <= 2 ? 'degraded' : 'critical'
 
     return NextResponse.json({
-      success:  true,
+      success: true,
       status,
       data: {
-        database:    'connected',
-        responseMs:  responseTime,
-        timestamp:   new Date().toISOString(),
+        database: 'connected',
+        responseMs: responseTime,
+        timestamp: new Date().toISOString(),
         system: {
-          totalForce:        systemConfig?.totalForce ?? 0,
-          weights:           systemConfig?.weights ?? null,
+          totalForce: systemConfig?.totalForce ?? 0,
+          weights: systemConfig?.weights ?? null,
           standbyPercentage: systemConfig?.standbyPercentage ?? 0.15,
         },
         zones: {
-          total:  totalZones,
+          total: totalZones,
           active: activeZones,
         },
         personnel: {
-          total:    totalPersonnel,
+          total: totalPersonnel,
           deployed: deployedPersonnel,
           available: totalPersonnel - deployedPersonnel,
         },
         roster: activeRoster
           ? {
-              active:      true,
-              generatedAt: activeRoster.generatedAt,
-              validFrom:   activeRoster.validFrom,
-              validUntil:  activeRoster.validUntil,
-            }
+            active: true,
+            generatedAt: activeRoster.generatedAt,
+            validFrom: activeRoster.validFrom,
+            validUntil: activeRoster.validUntil,
+          }
           : { active: false },
         incidents: {
           open: openIncidents,
@@ -96,16 +96,16 @@ export async function GET() {
       },
       warnings,
     })
-  } catch (error) {
+  } catch {
     const responseTime = Date.now() - start
     return NextResponse.json(
       {
-        success:    false,
-        status:     'critical',
+        success: false,
+        status: 'critical',
         data: {
-          database:   'disconnected',
+          database: 'disconnected',
           responseMs: responseTime,
-          timestamp:  new Date().toISOString(),
+          timestamp: new Date().toISOString(),
         },
         warnings: ['Database connection failed'],
       },

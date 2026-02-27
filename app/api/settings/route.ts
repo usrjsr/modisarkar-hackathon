@@ -10,7 +10,7 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'No system config found' }, { status: 404 })
         }
         return NextResponse.json({ success: true, data: config })
-    } catch (error) {
+    } catch {
         return NextResponse.json({ success: false, error: 'Failed to fetch config' }, { status: 500 })
     }
 }
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         })
 
         return NextResponse.json({ success: true, data: config }, { status: 201 })
-    } catch (error) {
+    } catch {
         return NextResponse.json({ success: false, error: 'Failed to save config' }, { status: 500 })
     }
 }

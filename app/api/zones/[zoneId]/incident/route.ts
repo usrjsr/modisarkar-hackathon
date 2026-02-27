@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           : 'No deficit — zone is adequately staffed at new density.',
       },
     }, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to trigger incident' }, { status: 500 })
   }
 }
@@ -136,7 +136,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .limit(20)
 
     return NextResponse.json({ success: true, data: incidents })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch incidents' }, { status: 500 })
   }
 }

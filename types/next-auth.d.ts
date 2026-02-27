@@ -1,4 +1,4 @@
-import NextAuth from "next-auth"
+// Disable import of NextAuth explicitly if not used
 
 declare module "next-auth" {
   interface Session {

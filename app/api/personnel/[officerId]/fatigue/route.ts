@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         nextAvailableAt: officer.nextAvailableAt,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch fatigue data' }, { status: 500 })
   }
 }
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       reason: result.reason,
     }
 
-    const updated = await PersonnelModel.findByIdAndUpdate(
+    await PersonnelModel.findByIdAndUpdate(
       officerId,
       {
         fatigueScore: result.newScore,
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         reason: result.reason,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to update fatigue' }, { status: 500 })
   }
 }
@@ -147,7 +147,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const officerPlain = officer.toObject() as Personnel
     const decayedScore = decayFatigue(officerPlain, daysRested)
 
-    const updated = await PersonnelModel.findByIdAndUpdate(
+    await PersonnelModel.findByIdAndUpdate(
       officerId,
       {
         fatigueScore: decayedScore,
@@ -169,7 +169,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         label,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to apply fatigue decay' }, { status: 500 })
   }
 }

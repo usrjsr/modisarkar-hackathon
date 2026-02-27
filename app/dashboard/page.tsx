@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import Link from "next/link"
@@ -28,7 +29,7 @@ function resolveHeatmapColor(zScore: number) {
 export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState("")
   const [zones, setZones] = useState<Zone[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [totalForce, setTotalForce] = useState(0)
   const [standbyPct, setStandbyPct] = useState(0.15)
   const [weights, setWeights] = useState({ w_s: 0.3, w_d: 0.7 })

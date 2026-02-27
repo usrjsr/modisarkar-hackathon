@@ -13,7 +13,7 @@ const RANK_COUNTS: Record<string, number> = {
     SI: 300, ASI: 400, HeadConstable: 800, Constable: 3173,
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
     try {
         await connectDB()
         const collection = mongoose.connection.db!.collection('personnels')
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         // Delete existing
         await collection.deleteMany({})
 
-        const batch: any[] = []
+        const batch: Record<string, unknown>[] = []
         let badgeNum = 1
 
         for (const [rank, count] of Object.entries(RANK_COUNTS)) {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json({ success: true, count: batch.length }, { status: 201 })
-    } catch (error: any) {
-        return NextResponse.json({ success: false, error: error?.message || 'Failed' }, { status: 500 })
+    } catch (error: unknown) {
+        return NextResponse.json({ success: false, error: (error as Error)?.message || 'Failed' }, { status: 500 })
     }
 }

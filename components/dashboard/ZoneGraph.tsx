@@ -48,7 +48,7 @@ export default function ZoneCard({ zone, onClick }: ZoneCardProps) {
                     </div>
                 </div>
                 {/* Mock fatigue score for visualization */}
-                <FatigueIndicator score={Math.random() * 8 + 1} />
+                <FatigueIndicator score={5.5} />
             </CardContent>
         </Card>
     );

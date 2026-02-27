@@ -47,7 +47,7 @@ export default function ZoneCard({ zone, onClick }: ZoneCardProps) {
                         <p className="text-lg font-bold">{zone.densityScore}</p>
                     </div>
                 </div>
-                <FatigueIndicator score={Math.random() * 8 + 1} />
+                <FatigueIndicator score={5.5} />
             </CardContent>
         </Card>
     );

@@ -11,11 +11,11 @@ export async function GET(req: NextRequest) {
     await connectDB()
 
     const { searchParams } = new URL(req.url)
-    const shift       = searchParams.get('shift')
-    const date        = searchParams.get('date')
-    const zoneColor   = searchParams.get('zoneColor') as HeatmapColor | null
-    const zoneId      = searchParams.get('zoneId')
-    const rankFilter  = searchParams.get('rank')
+    const shift = searchParams.get('shift')
+    const date = searchParams.get('date')
+    const zoneColor = searchParams.get('zoneColor') as HeatmapColor | null
+    const zoneId = searchParams.get('zoneId')
+    const rankFilter = searchParams.get('rank')
 
     if (!shift || !date) {
       return NextResponse.json(
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const shiftStartHour: Record<string, number> = {
       morning: 6,
       evening: 14,
-      night:   22,
+      night: 22,
     }
 
     if (!shiftStartHour[shift]) {
@@ -37,12 +37,12 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const shiftDate  = new Date(date)
+    const shiftDate = new Date(date)
     const shiftStart = new Date(shiftDate)
     shiftStart.setHours(shiftStartHour[shift], 0, 0, 0)
 
-    const query: Record<string, any> = {
-      rank:   { $in: FIELD_DEPLOYABLE_RANKS },
+    const query: Record<string, unknown> = {
+      rank: { $in: FIELD_DEPLOYABLE_RANKS },
       status: { $in: ['Active', 'Standby'] },
       $or: [
         { nextAvailableAt: null },
@@ -50,26 +50,26 @@ export async function GET(req: NextRequest) {
       ],
     }
 
-    if (rankFilter) query.rank      = rankFilter
-    if (zoneId)     query.homeZone  = zoneId
+    if (rankFilter) query.rank = rankFilter
+    if (zoneId) query.homeZone = zoneId
 
     const personnel = await PersonnelModel
       .find(query)
       .sort({ fatigueScore: 1 })
-      .populate('homeZone',    'name code')
+      .populate('homeZone', 'name code')
       .populate('currentZone', 'name code')
 
     const personnelPlain = personnel.map(p => p.toObject()) as Personnel[]
 
-    const available:   typeof personnelPlain = []
+    const available: typeof personnelPlain = []
     const unavailable: typeof personnelPlain = []
 
     for (const officer of personnelPlain) {
-      const restOk  = hasCompletedRest(officer, shiftStart)
-      const zoneOk  = zoneColor ? isEligibleForZone(officer, zoneColor) : true
+      const restOk = hasCompletedRest(officer, shiftStart)
+      const zoneOk = zoneColor ? isEligibleForZone(officer, zoneColor) : true
       const onLeave = officer.leavePeriods.some(lp => {
         const start = new Date(lp.startDate)
-        const end   = new Date(lp.endDate)
+        const end = new Date(lp.endDate)
         return shiftStart >= start && shiftStart <= end
       })
 
@@ -82,14 +82,14 @@ export async function GET(req: NextRequest) {
 
     const grouped = {
       zoneManagers: available.filter(o => RANK_TO_LEVEL[o.rank] === 'ZoneManager'),
-      sectorDuty:   available.filter(o => RANK_TO_LEVEL[o.rank] === 'SectorDuty'),
-      strategic:    available.filter(o => RANK_TO_LEVEL[o.rank] === 'Strategic'),
+      sectorDuty: available.filter(o => RANK_TO_LEVEL[o.rank] === 'SectorDuty'),
+      strategic: available.filter(o => RANK_TO_LEVEL[o.rank] === 'Strategic'),
     }
 
     const fatigueSummary = {
-      fresh:    available.filter(o => getFatigueBand(o.fatigueScore).band === 'low').length,
+      fresh: available.filter(o => getFatigueBand(o.fatigueScore).band === 'low').length,
       moderate: available.filter(o => getFatigueBand(o.fatigueScore).band === 'moderate').length,
-      tired:    available.filter(o => getFatigueBand(o.fatigueScore).band === 'high').length,
+      tired: available.filter(o => getFatigueBand(o.fatigueScore).band === 'high').length,
       critical: available.filter(o => getFatigueBand(o.fatigueScore).band === 'critical').length,
     }
 
@@ -101,11 +101,11 @@ export async function GET(req: NextRequest) {
         grouped,
         fatigueSummary,
         meta: {
-          totalAvailable:   available.length,
+          totalAvailable: available.length,
           totalUnavailable: unavailable.length,
           shift,
-          date:             shiftDate,
-          zoneColor:        zoneColor ?? 'any',
+          date: shiftDate,
+          zoneColor: zoneColor ?? 'any',
         },
       },
     })

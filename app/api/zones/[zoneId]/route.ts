@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: 'Zone not found' }, { status: 404 })
     }
     return NextResponse.json({ success: true, data: zone })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch zone' }, { status: 500 })
   }
 }
@@ -80,7 +80,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     return NextResponse.json({ success: true, data: updated })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to update zone' }, { status: 500 })
   }
 }
@@ -106,7 +106,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     )
 
     return NextResponse.json({ success: true, message: 'Zone deactivated' })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to delete zone' }, { status: 500 })
   }
 }

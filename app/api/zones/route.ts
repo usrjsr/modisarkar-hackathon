@@ -11,7 +11,7 @@ export async function GET() {
     await connectDB()
     const zones = await ZoneModel.find({ isActive: true }).sort({ zScore: -1 })
     return NextResponse.json({ success: true, data: zones })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch zones' }, { status: 500 })
   }
 }
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       const allZones = await ZoneModel.find({ isActive: true })
       const zonesPlain = allZones.map(z => z.toObject()) as Zone[]
 
-      const { zones: hydrated, adjacencyMap } = buildAndApplyAdjacency(zonesPlain, 'macro')
+      const { zones: hydrated } = buildAndApplyAdjacency(zonesPlain, 'macro')
 
       const distribution = distributeForce({
         totalForce: config.totalForce,

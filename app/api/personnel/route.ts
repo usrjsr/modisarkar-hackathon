@@ -9,19 +9,19 @@ export async function GET(req: NextRequest) {
     await connectDB()
 
     const { searchParams } = new URL(req.url)
-    const rank        = searchParams.get('rank')
-    const status      = searchParams.get('status')
-    const zoneId      = searchParams.get('zoneId')
-    const deployable  = searchParams.get('deployable')
-    const page        = parseInt(searchParams.get('page') ?? '1')
-    const limit       = parseInt(searchParams.get('limit') ?? '50')
-    const skip        = (page - 1) * limit
+    const rank = searchParams.get('rank')
+    const status = searchParams.get('status')
+    const zoneId = searchParams.get('zoneId')
+    const deployable = searchParams.get('deployable')
+    const page = parseInt(searchParams.get('page') ?? '1')
+    const limit = parseInt(searchParams.get('limit') ?? '50')
+    const skip = (page - 1) * limit
 
-    const query: Record<string, any> = {}
+    const query: Record<string, unknown> = {}
 
-    if (rank)       query.rank        = rank
-    if (status)     query.status      = status
-    if (zoneId)     query.currentZone = zoneId
+    if (rank) query.rank = rank
+    if (status) query.status = status
+    if (zoneId) query.currentZone = zoneId
     if (deployable === 'true') query.rank = { $in: FIELD_DEPLOYABLE_RANKS }
 
     const [personnel, total] = await Promise.all([
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data:    personnel,
+      data: personnel,
       meta: {
         total,
         page,
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch personnel' }, { status: 500 })
   }
 }
@@ -74,9 +74,9 @@ export async function POST(req: NextRequest) {
     }
 
     const validRanks = [
-      'DGP','ADGP','IG','DIG','SP',
-      'DSP','ASP','Inspector','SI',
-      'ASI','HeadConstable','Constable',
+      'DGP', 'ADGP', 'IG', 'DIG', 'SP',
+      'DSP', 'ASP', 'Inspector', 'SI',
+      'ASI', 'HeadConstable', 'Constable',
     ]
     if (!validRanks.includes(rank)) {
       return NextResponse.json(
@@ -100,24 +100,24 @@ export async function POST(req: NextRequest) {
       name,
       rank,
       commandLevel,
-      homeZone:               homeZone ?? null,
-      currentZone:            null,
-      fatigueScore:           0,
-      fatigueHistory:         [],
+      homeZone: homeZone ?? null,
+      currentZone: null,
+      fatigueScore: 0,
+      fatigueHistory: [],
       status,
-      leavePeriods:           [],
-      lastShiftEnd:           null,
+      leavePeriods: [],
+      lastShiftEnd: null,
       consecutiveNightShifts: 0,
-      totalDeployments:       0,
-      nextAvailableAt:        null,
-      version:                0,
-      email:                  email ?? null,
-      password:               password ?? null,
+      totalDeployments: 0,
+      nextAvailableAt: null,
+      version: 0,
+      email: email ?? null,
+      password: password ?? null,
       role,
     })
 
     return NextResponse.json({ success: true, data: officer }, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to create officer' }, { status: 500 })
   }
 }

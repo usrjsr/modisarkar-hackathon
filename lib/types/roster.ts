@@ -15,7 +15,7 @@ export interface ShiftBlock {
   startTime: string; // e.g. "06:00"
   endTime: string;   // e.g. "14:00"
   deployments: ShiftDeployment[];
-  standbyPool: PersonnelRef[]; // Officers on reserve this shift
+  standbyCount?: number;
 }
 
 export interface DaySchedule {
