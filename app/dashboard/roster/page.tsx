@@ -43,15 +43,19 @@ interface RosterData {
 }
 
 interface ShiftBlock {
-  zones: Array<{
+  shift: string
+  startTime: string
+  endTime: string
+  standbyCount: number
+  deployments: Array<{
     zoneId: string
-    deployed: Array<any>
-    totalDeployed: number
-    required: number
+    totalStrength: number
+    requiredStrength: number
     deficit: number
+    status: string
   }>
-  totalDeployed: number
-  totalRequired: number
+  totalDeployed?: number
+  totalRequired?: number
 }
 
 export default function RosterPage() {
@@ -161,10 +165,12 @@ export default function RosterPage() {
 
   const getShiftTotal = (shiftBlock: ShiftBlock | undefined): { deployed: number; required: number } => {
     if (!shiftBlock) return { deployed: 0, required: 0 }
-    return {
-      deployed: shiftBlock.totalDeployed ?? 0,
-      required: shiftBlock.totalRequired ?? 0,
-    }
+    // Use shift-level totals if available, otherwise compute from deployments
+    const deployed = shiftBlock.totalDeployed
+      ?? (shiftBlock.deployments || []).reduce((s, d) => s + (d.totalStrength ?? 0), 0)
+    const required = shiftBlock.totalRequired
+      ?? (shiftBlock.deployments || []).reduce((s, d) => s + (d.requiredStrength ?? 0), 0)
+    return { deployed, required }
   }
 
   const totalDeployed = schedule.reduce((sum, day) => {

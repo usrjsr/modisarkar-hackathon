@@ -4,6 +4,7 @@ import type { PersonnelRef } from './personnel';
 export interface ShiftDeployment {
   zoneId: string;
   personnel: PersonnelRef[];
+  personnelIds?: string[];       // Lean IDs used by scheduler (avoids massive memory)
   totalStrength: number;
   requiredStrength: number;
   deficit: number; // 0 = fully staffed, positive = understaffed

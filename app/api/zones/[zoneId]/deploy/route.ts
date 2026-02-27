@@ -7,7 +7,7 @@ import SystemConfigModel from '@/lib/db/models/SystemConfig'
 import { distributeForce } from '@/lib/algorithms/proportionalDistributor'
 import { sortByEligibility } from '@/lib/algorithms/fatigueCalculator'
 import { buildAndApplyAdjacency } from '@/lib/algorithms/graph/adjacencyBuilder'
-import { MIN_ZONE_COMPOSITION } from '@/lib/constants/ranks'
+import { FIELD_DEPLOYABLE_RANKS, MIN_ZONE_COMPOSITION } from '@/lib/constants/ranks'
 import type { Zone } from '@/lib/types/zone'
 import type { Personnel } from '@/lib/types/personnel'
 
@@ -98,12 +98,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     const shiftStart = new Date(shiftDate)
     shiftStart.setHours(shiftStartHour[shift], 0, 0, 0)
 
+    // Query ALL field-deployable personnel (not just those with matching homeZone/currentZone)
     const availablePersonnel = await PersonnelModel.find({
+      rank: { $in: FIELD_DEPLOYABLE_RANKS },
       status: { $in: ['Active', 'Standby'] },
-      nextAvailableAt: { $lte: shiftStart },
       $or: [
-        { homeZone: zoneId },
-        { currentZone: zoneId },
+        { nextAvailableAt: { $lte: shiftStart } },
+        { nextAvailableAt: null },
       ],
     })
 

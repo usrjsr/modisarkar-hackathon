@@ -1,4 +1,4 @@
-import { SHIFT_NAMES, SHIFTS, SHIFT_SEQUENCE } from '../constants/shifts';
+import { SHIFT_NAMES, SHIFTS, SHIFT_SEQUENCE, SHIFT_DURATION_HOURS } from '../constants/shifts';
 import { STANDBY_POOL_PERCENTAGE, MAX_CONSECUTIVE_NIGHT_SHIFTS } from '../constants/thresholds';
 import { RANK_TO_LEVEL, MIN_ZONE_COMPOSITION, FIELD_DEPLOYABLE_RANKS } from '../constants/ranks';
 import {
@@ -111,7 +111,9 @@ function pickOfficersForZone(
 ): { deployedIds: string[]; usedStandbyIds: Set<string> } {
   const deployedIds: string[] = [];
   const usedStandbyIds: Set<string> = new Set();
-  const needed = allocation.allocation;
+  // Divide total allocation by number of shifts so each shift fills its fair share
+  const numShifts = SHIFT_SEQUENCE.length; // 3
+  const needed = Math.ceil(allocation.allocation / numShifts);
   const zoneColor = allocation.heatmapColor;
 
   // ── 1. Enforce minimum composition first ──────────────────────────────────
@@ -183,12 +185,13 @@ function pickOfficersForZone(
     filled++;
   }
 
-  // ── 3. Check if zone is understaffed ─────────────────────────────────────
-  if (deployedIds.length < allocation.safeThreshold) {
+  // ── 3. Check if zone is understaffed (per-shift threshold) ───────────────
+  const perShiftThreshold = Math.ceil(allocation.safeThreshold / SHIFT_SEQUENCE.length);
+  if (deployedIds.length < perShiftThreshold) {
     violations.push({
       type: 'UnderstaffedZone',
-      description: `Zone "${zone.name}" ${shift} shift on day ${dayNumber}: deployed ${deployedIds.length}/${needed} (safe threshold: ${allocation.safeThreshold}).`,
-      severity: deployedIds.length < Math.floor(allocation.safeThreshold * 0.5) ? 'critical' : 'warning',
+      description: `Zone "${zone.name}" ${shift} shift on day ${dayNumber}: deployed ${deployedIds.length}/${needed} (safe threshold: ${perShiftThreshold}).`,
+      severity: deployedIds.length < Math.floor(perShiftThreshold * 0.5) ? 'critical' : 'warning',
       affectedZoneId: zone._id,
       dayNumber,
       shift,
@@ -216,7 +219,14 @@ function buildShiftBlock(
   const deployments: any[] = [];
   const allDeployedIds: Set<string> = new Set();
 
-  for (const zone of zones) {
+  // Sort zones by Z-score DESCENDING so highest-risk zones get first pick of personnel
+  const sortedZones = [...zones].sort((a, b) => {
+    const allocA = allocations.find(al => al.zoneId === a._id);
+    const allocB = allocations.find(al => al.zoneId === b._id);
+    return (allocB?.zScore ?? 0) - (allocA?.zScore ?? 0);
+  });
+
+  for (const zone of sortedZones) {
     const allocation = allocations.find(a => a.zoneId === zone._id);
     if (!allocation) continue;
 
@@ -237,7 +247,9 @@ function buildShiftBlock(
     usedStandbyIds.forEach(id => allDeployedIds.add(id));
 
     const totalStrength = deployedIds.length;
-    const requiredStrength = allocation.allocation;
+    // Use per-shift allocation (not total) for accurate reporting
+    const perShiftAllocation = Math.ceil(allocation.allocation / SHIFT_SEQUENCE.length);
+    const requiredStrength = perShiftAllocation;
     const deficit = requiredStrength - totalStrength;
 
     deployments.push({
@@ -331,6 +343,14 @@ export function generateRoster(input: SchedulerInput): RosterDraft {
   const activeForce = totalForce - standbyCount;
   const violations: RosterViolation[] = [];
   const schedule: DaySchedule[] = [];
+
+  // Log per-zone allocation for debugging
+  console.log('[SCHEDULER] Per-zone allocations (total | per-shift):');
+  for (const alloc of allocations) {
+    const zone = zones.find(z => z._id === alloc.zoneId);
+    const perShift = Math.ceil(alloc.allocation / SHIFT_SEQUENCE.length);
+    console.log(`  ${zone?.name ?? alloc.zoneId}: total=${alloc.allocation}, perShift=${perShift}, zScore=${alloc.zScore}, color=${alloc.heatmapColor}`);
+  }
 
   // Split into standby pool (lowest fatigue, least senior) vs active pool
   const sortedByFatigue = [...allPersonnel].sort((a, b) => a.fatigueScore - b.fatigueScore);

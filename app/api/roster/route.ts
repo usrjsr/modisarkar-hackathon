@@ -68,6 +68,13 @@ export async function POST(req: NextRequest) {
       weights: config.weights,
     })
 
+    // Diagnostic: log per-zone allocation proportional to severity
+    console.log(`[ROSTER] Total force: ${actualTotalForce}, Active: ${distribution.activeForce}, Standby: ${distribution.standbyPool}`)
+    for (const alloc of distribution.allocations) {
+      const zone = hydrated.find(z => z._id === alloc.zoneId)
+      console.log(`  Zone "${zone?.name}" (${zone?.code}): zScore=${alloc.zScore}, allocation=${alloc.allocation}, color=${alloc.heatmapColor}`)
+    }
+
     // Update zone scores immediately
     for (const alloc of distribution.allocations) {
       await ZoneModel.findByIdAndUpdate(alloc.zoneId, {
@@ -98,8 +105,10 @@ export async function POST(req: NextRequest) {
 
     if (currentShiftBlock?.deployments) {
       console.log(`[DEPLOY] Active shift: ${activeShift}, Deployments: ${currentShiftBlock.deployments.length} zones`)
+      console.log(`[DEPLOY] Personnel pool size: ${allPersonnel.length} field-deployable officers`)
       for (const dep of currentShiftBlock.deployments) {
-        console.log(`  Zone ${dep.zoneId}: personnelIds=${(dep.personnelIds || []).length}, totalStrength=${dep.totalStrength}, required=${dep.requiredStrength}`)
+        const ids = dep.personnelIds || []
+        console.log(`  Zone ${dep.zoneId}: personnelIds=${ids.length}, totalStrength=${dep.totalStrength}, required=${dep.requiredStrength}, deficit=${dep.deficit}`)
       }
       // Reset all field personnel to Standby first
       await PersonnelModel.updateMany(
@@ -108,10 +117,14 @@ export async function POST(req: NextRequest) {
       )
 
       // Deploy personnel to zones based on roster schedule
+      let totalDeployedCount = 0
       for (const dep of currentShiftBlock.deployments) {
         const rawIds = dep.personnelIds || []
         const objectIds = rawIds.map((id: string) => new mongoose.Types.ObjectId(id))
         const zoneObjectId = new mongoose.Types.ObjectId(dep.zoneId)
+
+        console.log(`[DEPLOY] Zone ${dep.zoneId}: deploying ${rawIds.length} officers, setting currentDeployment=${rawIds.length}`)
+        totalDeployedCount += rawIds.length
 
         // Update zone's currentDeployment count
         await ZoneModel.findByIdAndUpdate(zoneObjectId, {
@@ -127,6 +140,7 @@ export async function POST(req: NextRequest) {
           )
         }
       }
+      console.log(`[DEPLOY] Total deployed across all zones: ${totalDeployedCount}`)
     }
 
     // ── SAVE: Store only summary data in roster document (no personnelIds) ──
@@ -134,19 +148,23 @@ export async function POST(req: NextRequest) {
     const summarySchedule = draft.schedule.map((day: any) => {
       const shifts: any = {}
       for (const [shiftName, shiftBlock] of Object.entries(day.shifts) as any[]) {
+        const depsSummary = shiftBlock.deployments.map((dep: any) => ({
+          zoneId: dep.zoneId,
+          totalStrength: dep.totalStrength,
+          requiredStrength: dep.requiredStrength,
+          deficit: dep.deficit,
+          status: dep.status,
+          // NO personnelIds — saves ~15MB
+        }))
         shifts[shiftName] = {
           shift: shiftBlock.shift,
           startTime: shiftBlock.startTime,
           endTime: shiftBlock.endTime,
           standbyCount: shiftBlock.standbyCount ?? 0,
-          deployments: shiftBlock.deployments.map((dep: any) => ({
-            zoneId: dep.zoneId,
-            totalStrength: dep.totalStrength,
-            requiredStrength: dep.requiredStrength,
-            deficit: dep.deficit,
-            status: dep.status,
-            // NO personnelIds — saves ~15MB
-          })),
+          deployments: depsSummary,
+          // Shift-level totals for the roster dashboard
+          totalDeployed: depsSummary.reduce((s: number, d: any) => s + (d.totalStrength ?? 0), 0),
+          totalRequired: depsSummary.reduce((s: number, d: any) => s + (d.requiredStrength ?? 0), 0),
         }
       }
       return {
