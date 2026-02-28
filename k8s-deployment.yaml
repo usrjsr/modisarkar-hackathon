@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modisarkar-deployment
+  labels:
+    app: modisarkar-web
+spec:
+  replicas: 1 # Starts with 1 replica, can scale later
+  selector:
+    matchLabels:
+      app: modisarkar-web
+  template:
+    metadata:
+      labels:
+        app: modisarkar-web
+    spec:
+      containers:
+      - name: modisarkar-nextjs
+        # The Docker image from your Docker Hub repository
+        image: adarsh28082006/modisarkar-nextjs-prod:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        # We will add database credentials here securely later!
+        - name: NODE_ENV
+          value: "production"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: modisarkar-service
+spec:
+  type: NodePort
+  selector:
+    app: modisarkar-web
+  ports:
+    - protocol: TCP
+      port: 80         # Internal cluster port
+      targetPort: 3000 # Next.js container port
+      nodePort: 30080    # Public exposed port (Must be between 30000-32767)
