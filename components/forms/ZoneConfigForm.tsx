@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { AlertCircle, MapPin } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import dynamic from "next/dynamic"
 
 const MapLocationPicker = dynamic(() => import("@/components/forms/MapLocationPicker"), {

@@ -18,10 +18,8 @@ import {
   Moon,
   Bell,
   Radio,
-  Activity,
   LogOut,
   Menu,
-  X,
 } from "lucide-react"
 
 const NAV_ITEMS = [
@@ -64,12 +62,10 @@ const NAV_ITEMS = [
 ]
 
 function ThemeToggle() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark")
-
-  useEffect(() => {
-    const stored = localStorage.getItem("sentinel-theme") as "dark" | "light" | null
-    if (stored) setTheme(stored)
-  }, [])
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark"
+    return (localStorage.getItem("sentinel-theme") as "dark" | "light") || "dark"
+  })
 
   const toggle = () => {
     const next = theme === "dark" ? "light" : "dark"
@@ -223,10 +219,9 @@ export default function DashboardLayout({
                   flex items-center gap-3 px-2 py-2 rounded-md
                   transition-colors duration-150 group relative
                   ${collapsed ? "justify-center" : ""}
-                  ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  ${active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                   }
                 `}
               >
@@ -241,10 +236,9 @@ export default function DashboardLayout({
                     className={`
                       font-mono text-[9px] font-bold tracking-widest px-1.5 py-0.5
                       rounded-sm border
-                      ${
-                        active
-                          ? "border-primary-foreground/40 text-primary-foreground bg-primary-foreground/10"
-                          : "border-danger text-danger bg-danger-muted"
+                      ${active
+                        ? "border-primary-foreground/40 text-primary-foreground bg-primary-foreground/10"
+                        : "border-danger text-danger bg-danger-muted"
                       }
                     `}
                   >

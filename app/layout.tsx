@@ -7,18 +7,21 @@ const spaceMono = Space_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
   weight: ["400", "700"],
+  preload: false,
 });
 
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "900"],
+  preload: false,
 });
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+  preload: false,
 });
 
 export const metadata: Metadata = {

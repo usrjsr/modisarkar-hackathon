@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Users, ShieldAlert, TrendingUp, MapPin, Activity, Clock, AlertTriangle, ChevronRight } from "lucide-react"
+import { ArrowLeft, Users, ShieldAlert, TrendingUp, MapPin, Activity, AlertTriangle, ChevronRight } from "lucide-react"
 import { Zone } from "@/lib/types/dashboard"
 
 interface DeployedOfficer {
@@ -201,9 +201,8 @@ export default function ZoneDetailPage() {
             </div>
             <div className="h-2 bg-surface-overlay rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  isDeficit ? "bg-danger" : utilizationPct >= 100 ? "bg-warning" : "bg-success"
-                }`}
+                className={`h-full rounded-full transition-all duration-500 ${isDeficit ? "bg-danger" : utilizationPct >= 100 ? "bg-warning" : "bg-success"
+                  }`}
                 style={{ width: `${Math.min(utilizationPct, 100)}%` }}
               />
             </div>

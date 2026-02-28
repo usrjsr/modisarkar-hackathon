@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import AlertBanner from "@/components/dashboard/AlertBanner"
 import ZoneCard from "@/components/dashboard/ZoneCard"
@@ -44,12 +44,20 @@ export default function ZonesPage() {
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [activeTab, setActiveTab] = useState<TabValue>("overview")
 
-  async function fetchAndSetZones() {
+  interface ZoneRaw {
+    _id: string; name: string; code: string
+    sizeScore: number; densityScore: number
+    currentDeployment?: number; safeThreshold?: number
+    zScore?: number; heatmapColor?: string
+    centroid?: { coordinates: [number, number] }
+  }
+
+  const fetchAndSetZones = useCallback(async () => {
     const refreshRes = await fetch("/api/zones")
     const refreshResult = await refreshRes.json()
     if (refreshResult.success && refreshResult.data) {
       setZones(
-        refreshResult.data.map((z: any) => ({
+        refreshResult.data.map((z: ZoneRaw) => ({
           _id: z._id,
           name: z.name,
           code: z.code,
@@ -63,11 +71,14 @@ export default function ZonesPage() {
         }))
       )
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchAndSetZones().catch(() => console.error("Failed to fetch zones"))
-  }, [])
+    const load = async () => {
+      await fetchAndSetZones().catch(() => console.error("Failed to fetch zones"))
+    }
+    load()
+  }, [fetchAndSetZones])
 
   const totalDeployment = zones.reduce((sum, z) => sum + z.currentDeployment, 0)
   const totalCapacity = zones.reduce((sum, z) => sum + z.safeThreshold, 0)
@@ -85,7 +96,7 @@ export default function ZonesPage() {
       ...zone,
       latitude: zone.centroid?.coordinates?.[1] ?? 28.6139,
       longitude: zone.centroid?.coordinates?.[0] ?? 77.209,
-    } as any)
+    } as Zone & { latitude: number; longitude: number })
     setIsFormOpen(true)
   }
 
@@ -94,7 +105,14 @@ export default function ZonesPage() {
     setSelectedZone(null)
   }
 
-  const handleZoneSubmit = async (data: any) => {
+  interface ZoneFormData {
+    name: string; code: string
+    sizeScore: number; densityScore: number
+    latitude: number; longitude: number
+    isActive: boolean
+  }
+
+  const handleZoneSubmit = async (data: ZoneFormData) => {
     if (selectedZone) {
       try {
         const res = await fetch(`/api/zones/${selectedZone._id}`, {

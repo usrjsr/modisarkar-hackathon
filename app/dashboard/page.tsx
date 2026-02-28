@@ -66,12 +66,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchZones() {
+      interface ZoneRaw {
+        _id: string; name: string; code: string
+        sizeScore: number; densityScore: number
+        currentDeployment?: number; safeThreshold?: number
+        zScore?: number; heatmapColor?: string
+        centroid?: { coordinates: [number, number] }
+      }
       try {
         const res = await fetch("/api/zones")
         const result = await res.json()
         if (result.success && result.data?.length > 0) {
           setZones(
-            result.data.map((z: any) => ({
+            result.data.map((z: ZoneRaw) => ({
               _id: z._id,
               name: z.name,
               code: z.code,
@@ -102,16 +109,17 @@ export default function DashboardPage() {
     }
 
     async function fetchPersonnel() {
+      interface PersonnelRaw { status: string }
       try {
         const res = await fetch("/api/personnel?limit=500")
         const result = await res.json()
         if (result.success && result.data) {
-          const all = result.data
+          const all: PersonnelRaw[] = result.data
           setPersonnelStats({
             total: all.length,
-            deployed: all.filter((p: any) => p.status === "Deployed").length,
-            onLeave: all.filter((p: any) => p.status === "OnLeave").length,
-            standby: all.filter((p: any) => p.status === "Standby").length,
+            deployed: all.filter((p) => p.status === "Deployed").length,
+            onLeave: all.filter((p) => p.status === "OnLeave").length,
+            standby: all.filter((p) => p.status === "Standby").length,
           })
         }
       } catch (err) { console.error(err) }
@@ -245,13 +253,12 @@ export default function DashboardPage() {
                     </p>
                     <p className="mono-data">{shift.time}</p>
                   </div>
-                  <span className={`font-mono text-[10px] font-bold px-2 py-1 rounded-sm border ${
-                    shift.status === "ACTIVE"
+                  <span className={`font-mono text-[10px] font-bold px-2 py-1 rounded-sm border ${shift.status === "ACTIVE"
                       ? "bg-success-muted border-success text-success"
                       : shift.status === "DONE"
-                      ? "bg-muted border-border text-muted-foreground"
-                      : "bg-primary-muted border-primary text-primary"
-                  }`}>
+                        ? "bg-muted border-border text-muted-foreground"
+                        : "bg-primary-muted border-primary text-primary"
+                    }`}>
                     {shift.status}
                   </span>
                 </div>
@@ -357,8 +364,8 @@ function StatCard({
     primary: { border: "border-t-primary", icon: "text-primary", value: "text-primary" },
     success: { border: "border-t-success", icon: "text-success", value: "text-success" },
     warning: { border: "border-t-warning", icon: "text-warning", value: "text-warning" },
-    danger:  { border: "border-t-danger",  icon: "text-danger",  value: "text-danger"  },
-    accent:  { border: "border-t-accent",  icon: "text-accent",  value: "text-accent"  },
+    danger: { border: "border-t-danger", icon: "text-danger", value: "text-danger" },
+    accent: { border: "border-t-accent", icon: "text-accent", value: "text-accent" },
   }
 
   const c = accentMap[accent]
