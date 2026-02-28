@@ -1,70 +1,79 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
 import AlertBanner from "@/components/dashboard/AlertBanner"
 import ZoneCard from "@/components/dashboard/ZoneCard"
 import ZoneHeatmap from "@/components/dashboard/ZoneHeatmap"
 import ZoneConfigForm from "@/components/forms/ZoneConfigForm"
-import { Plus, X } from "lucide-react"
+import { Plus, X, Map, BarChart3, LayoutGrid, MapPin, Users, Gauge, Shield, Eye, Edit, Trash2 } from "lucide-react"
 import { Zone } from "@/lib/types/dashboard"
 import dynamic from "next/dynamic"
 
-const ZoneLeafletMap = dynamic(() => import("@/components/dashboard/ZoneLeafletMap"), { ssr: false, loading: () => <div className="h-[420px] flex items-center justify-center bg-gray-100 rounded-lg"><p className="text-gray-500">Loading map...</p></div> })
+const ZoneLeafletMap = dynamic(() => import("@/components/dashboard/ZoneLeafletMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[420px] flex items-center justify-center bg-surface border border-border rounded-md">
+      <div className="flex items-center gap-2">
+        <span className="status-dot-pulse bg-primary" />
+        <span className="mono-data">LOADING MAP...</span>
+      </div>
+    </div>
+  ),
+})
+
+type TabValue = "overview" | "map" | "heatmap"
 
 export default function ZonesPage() {
-  // Helper for Z-score and color
+  const router = useRouter()
+
   function calculateZScore(S: number, D: number, w_s = 0.3, w_d = 0.7) {
-    return (w_s * S + w_d * D) / (w_s + w_d);
+    return (w_s * S + w_d * D) / (w_s + w_d)
   }
+
   function resolveHeatmapColor(zScore: number) {
-    // 0–10 scale
-    const normalised = ((zScore - 1) / 9) * 10;
-    if (normalised >= 7.5) return 'red';
-    if (normalised >= 5.0) return 'orange';
-    if (normalised >= 2.5) return 'yellow';
-    return 'green';
+    const normalised = ((zScore - 1) / 9) * 10
+    if (normalised >= 7.5) return "red"
+    if (normalised >= 5.0) return "orange"
+    if (normalised >= 2.5) return "yellow"
+    return "green"
   }
 
   const [zones, setZones] = useState<Zone[]>([])
-
-  useEffect(() => {
-    async function fetchZones() {
-      try {
-        const res = await fetch('/api/zones')
-        const result = await res.json()
-        if (result.success && result.data && result.data.length > 0) {
-          setZones(result.data.map((z: any) => ({
-            _id: z._id,
-            name: z.name,
-            code: z.code,
-            sizeScore: z.sizeScore,
-            densityScore: z.densityScore,
-            currentDeployment: z.currentDeployment ?? 0,
-            safeThreshold: z.safeThreshold ?? 0,
-            zScore: z.zScore ?? calculateZScore(z.sizeScore, z.densityScore),
-            heatmapColor: z.heatmapColor ?? resolveHeatmapColor(z.zScore ?? calculateZScore(z.sizeScore, z.densityScore)),
-            centroid: z.centroid ?? { coordinates: [77.22, 28.60] }
-          })))
-        }
-      } catch {
-        console.error('Failed to fetch zones')
-      }
-    }
-    fetchZones()
-  }, [])
-
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
+  const [activeTab, setActiveTab] = useState<TabValue>("overview")
+
+  async function fetchAndSetZones() {
+    const refreshRes = await fetch("/api/zones")
+    const refreshResult = await refreshRes.json()
+    if (refreshResult.success && refreshResult.data) {
+      setZones(
+        refreshResult.data.map((z: any) => ({
+          _id: z._id,
+          name: z.name,
+          code: z.code,
+          sizeScore: z.sizeScore,
+          densityScore: z.densityScore,
+          currentDeployment: z.currentDeployment ?? 0,
+          safeThreshold: z.safeThreshold ?? 0,
+          zScore: z.zScore ?? calculateZScore(z.sizeScore, z.densityScore),
+          heatmapColor: z.heatmapColor ?? resolveHeatmapColor(z.zScore ?? calculateZScore(z.sizeScore, z.densityScore)),
+          centroid: z.centroid ?? { coordinates: [77.22, 28.6] },
+        }))
+      )
+    }
+  }
+
+  useEffect(() => {
+    fetchAndSetZones().catch(() => console.error("Failed to fetch zones"))
+  }, [])
 
   const totalDeployment = zones.reduce((sum, z) => sum + z.currentDeployment, 0)
   const totalCapacity = zones.reduce((sum, z) => sum + z.safeThreshold, 0)
   const activeZones = zones.length
   const criticalZones = zones.filter(z => z.currentDeployment > z.safeThreshold).length
-  const utilizationRate = ((totalDeployment / totalCapacity) * 100).toFixed(1)
+  const utilizationRate = totalCapacity > 0 ? ((totalDeployment / totalCapacity) * 100).toFixed(1) : "0.0"
 
   const handleAddZone = () => {
     setSelectedZone(null)
@@ -75,7 +84,7 @@ export default function ZonesPage() {
     setSelectedZone({
       ...zone,
       latitude: zone.centroid?.coordinates?.[1] ?? 28.6139,
-      longitude: zone.centroid?.coordinates?.[0] ?? 77.2090,
+      longitude: zone.centroid?.coordinates?.[0] ?? 77.209,
     } as any)
     setIsFormOpen(true)
   }
@@ -87,249 +96,275 @@ export default function ZonesPage() {
 
   const handleZoneSubmit = async (data: any) => {
     if (selectedZone) {
-      // UPDATE via PATCH API
       try {
         const res = await fetch(`/api/zones/${selectedZone._id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: data.name,
             sizeScore: data.sizeScore,
             densityScore: data.densityScore,
             isActive: data.isActive,
-            centroid: { type: 'Point', coordinates: [data.longitude, data.latitude] },
-          })
-        });
-        const result = await res.json();
+            centroid: { type: "Point", coordinates: [data.longitude, data.latitude] },
+          }),
+        })
+        const result = await res.json()
         if (result.success && result.data) {
-          // Refresh all zones from DB to get recalculated scores
-          const refreshRes = await fetch('/api/zones');
-          const refreshResult = await refreshRes.json();
-          if (refreshResult.success && refreshResult.data) {
-            setZones(refreshResult.data.map((z: any) => ({
-              _id: z._id,
-              name: z.name,
-              code: z.code,
-              sizeScore: z.sizeScore,
-              densityScore: z.densityScore,
-              currentDeployment: z.currentDeployment ?? 0,
-              safeThreshold: z.safeThreshold ?? 0,
-              zScore: z.zScore ?? calculateZScore(z.sizeScore, z.densityScore),
-              heatmapColor: z.heatmapColor ?? resolveHeatmapColor(z.zScore ?? calculateZScore(z.sizeScore, z.densityScore)),
-              centroid: z.centroid ?? { coordinates: [77.22, 28.60] }
-            })));
-          }
+          await fetchAndSetZones()
         } else {
-          alert(result.error || 'Failed to update zone');
+          alert(result.error || "Failed to update zone")
         }
       } catch {
-        alert('Error updating zone');
+        alert("Error updating zone")
       }
     } else {
-      // CREATE via POST API
       try {
-        const res = await fetch('/api/zones', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/zones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: data.name,
             code: data.code.toUpperCase(),
             sizeScore: data.sizeScore,
             densityScore: data.densityScore,
-            centroid: { type: 'Point', coordinates: [data.longitude, data.latitude] },
-          })
-        });
-        const result = await res.json();
+            centroid: { type: "Point", coordinates: [data.longitude, data.latitude] },
+          }),
+        })
+        const result = await res.json()
         if (result.success && result.data) {
-          // Refresh all zones from DB
-          const refreshRes = await fetch('/api/zones');
-          const refreshResult = await refreshRes.json();
-          if (refreshResult.success && refreshResult.data) {
-            setZones(refreshResult.data.map((z: any) => ({
-              _id: z._id,
-              name: z.name,
-              code: z.code,
-              sizeScore: z.sizeScore,
-              densityScore: z.densityScore,
-              currentDeployment: z.currentDeployment ?? 0,
-              safeThreshold: z.safeThreshold ?? 0,
-              zScore: z.zScore ?? calculateZScore(z.sizeScore, z.densityScore),
-              heatmapColor: z.heatmapColor ?? resolveHeatmapColor(z.zScore ?? calculateZScore(z.sizeScore, z.densityScore)),
-              centroid: z.centroid ?? { coordinates: [77.22, 28.60] }
-            })));
-          }
+          await fetchAndSetZones()
         } else {
-          alert(result.error || 'Failed to create zone');
-          return;
+          alert(result.error || "Failed to create zone")
+          return
         }
       } catch {
-        alert('Error creating zone');
-        return;
+        alert("Error creating zone")
+        return
       }
     }
-    handleCloseForm();
+    handleCloseForm()
   }
 
   const handleDeleteZone = async (zoneId: string) => {
-    if (!confirm('Are you sure you want to delete this zone?')) return;
+    if (!confirm("Are you sure you want to delete this zone?")) return
     try {
-      const res = await fetch(`/api/zones/${zoneId}`, {
-        method: 'DELETE',
-      });
-      const result = await res.json();
+      const res = await fetch(`/api/zones/${zoneId}`, { method: "DELETE" })
+      const result = await res.json()
       if (result.success) {
-        setZones(zones.filter(z => z._id !== zoneId));
+        setZones(zones.filter(z => z._id !== zoneId))
       } else {
-        alert(result.error || 'Failed to delete zone');
+        alert(result.error || "Failed to delete zone")
       }
     } catch {
-      alert('Error deleting zone');
+      alert("Error deleting zone")
     }
   }
 
+  const TABS: { value: TabValue; label: string; icon: React.ElementType }[] = [
+    { value: "overview", label: "Zone Overview", icon: LayoutGrid },
+    { value: "map", label: "Deployment Map", icon: Map },
+    { value: "heatmap", label: "Heatmap View", icon: BarChart3 },
+  ]
+
   return (
-    <div className="space-y-6">
-      <div className="border-b-2 border-blue-900 pb-4">
-        <h1 className="text-3xl font-bold text-blue-900">Zone Configuration & Management</h1>
-        <p className="text-sm text-gray-600 mt-1">Operational Zone Setup - Personnel Distribution Strategy</p>
+    <div className="p-4 md:p-6 space-y-5 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="tag-primary">ZONES</span>
+            {criticalZones > 0 && <span className="tag-critical">{criticalZones} CRITICAL</span>}
+          </div>
+          <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+            Zone Configuration & Management
+          </h1>
+          <p className="mono-data mt-1">Operational Zone Setup · Personnel Distribution Strategy</p>
+        </div>
+        {!isFormOpen && (
+          <button
+            onClick={handleAddZone}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity font-semibold text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Create New Zone
+          </button>
+        )}
       </div>
 
-      {!isFormOpen && (
-        <div className="flex justify-end">
-          <Button onClick={handleAddZone} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Create New Zone
-          </Button>
-        </div>
-      )}
-
       {isFormOpen && (
-        <Card className="bg-blue-50 border-l-4 border-l-blue-900">
-          <CardHeader className="bg-blue-100 border-b flex flex-row items-center justify-between">
-            <CardTitle className="text-blue-900">{selectedZone ? "Edit Zone Configuration" : "Create New Zone"}</CardTitle>
-            <Button variant="ghost" size="sm" onClick={handleCloseForm}>
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <ZoneConfigForm
-              defaultValues={selectedZone || undefined}
-              onSubmit={handleZoneSubmit}
-            />
-          </CardContent>
-        </Card>
+        <div className="sentinel-card overflow-hidden animate-slide-in-up">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span className="font-display font-semibold text-sm text-foreground">
+                {selectedZone ? "Edit Zone Configuration" : "Create New Zone"}
+              </span>
+            </div>
+            <button
+              onClick={handleCloseForm}
+              className="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-surface-overlay text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="p-4">
+            <ZoneConfigForm defaultValues={selectedZone || undefined} onSubmit={handleZoneSubmit} />
+          </div>
+        </div>
       )}
 
       {criticalZones > 0 && (
         <AlertBanner
           type="critical"
-          title={`⚠️ CRITICAL: ${criticalZones} Zone(s) Over Safe Threshold`}
+          title={`CRITICAL: ${criticalZones} Zone(s) Over Safe Threshold`}
           message={`Immediate rebalancing required. Personnel surplus: ${zones.reduce((sum, z) => sum + Math.max(0, z.currentDeployment - z.safeThreshold), 0)}`}
         />
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <ZoneStatCard
-          label="Total Zones"
-          value={activeZones}
-          color="blue"
-        />
-        <ZoneStatCard
-          label="Total Deployed"
-          value={totalDeployment}
-          color="green"
-        />
-        <ZoneStatCard
-          label="Total Capacity"
-          value={totalCapacity}
-          color="indigo"
-        />
-        <ZoneStatCard
-          label="Utilization"
-          value={`${utilizationRate}%`}
-          color={parseFloat(utilizationRate) > 85 ? "red" : "green"}
-        />
+        {[
+          { label: "Total Zones", value: activeZones, icon: MapPin, accent: "primary" as const },
+          { label: "Total Deployed", value: totalDeployment, icon: Users, accent: "success" as const },
+          { label: "Total Capacity", value: totalCapacity, icon: Shield, accent: "accent" as const },
+          {
+            label: "Utilisation",
+            value: `${utilizationRate}%`,
+            icon: Gauge,
+            accent: (parseFloat(utilizationRate) > 85 ? "danger" : "success") as "danger" | "success",
+          },
+        ].map(s => {
+          const borderMap = {
+            primary: "border-t-primary",
+            success: "border-t-success",
+            accent: "border-t-accent",
+            danger: "border-t-danger",
+          }
+          const textMap = {
+            primary: "text-primary",
+            success: "text-success",
+            accent: "text-accent",
+            danger: "text-danger",
+          }
+          const iconMap = {
+            primary: "text-primary",
+            success: "text-success",
+            accent: "text-accent",
+            danger: "text-danger",
+          }
+          return (
+            <div key={s.label} className={`sentinel-card border-t-2 ${borderMap[s.accent]} p-4`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="mono-data text-[10px]">{s.label}</span>
+                <s.icon className={`w-3.5 h-3.5 ${iconMap[s.accent]}`} />
+              </div>
+              <p className={`font-display text-2xl font-bold ${textMap[s.accent]}`}>{s.value}</p>
+            </div>
+          )
+        })}
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Zone Overview</TabsTrigger>
-          <TabsTrigger value="map">Deployment Map</TabsTrigger>
-          <TabsTrigger value="heatmap">Heatmap View</TabsTrigger>
-        </TabsList>
+      <div className="sentinel-card overflow-hidden">
+        <div className="flex border-b border-border">
+          {TABS.map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`
+                flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-150
+                ${activeTab === tab.value
+                  ? "border-b-primary text-primary bg-primary-muted/30"
+                  : "border-b-transparent text-muted-foreground hover:text-foreground hover:bg-surface-raised"
+                }
+              `}
+            >
+              <tab.icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <Card className="border-l-4 border-l-blue-900">
-            <CardHeader className="bg-blue-50 border-b">
-              <CardTitle className="text-blue-900">Configured Zones</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
+        {activeTab === "overview" && (
+          <div className="p-4 animate-fade-in">
+            <div className="flex items-center gap-2 mb-4">
+              <LayoutGrid className="w-4 h-4 text-primary" />
+              <span className="font-display font-semibold text-sm text-foreground">Configured Zones</span>
+              <span className="ml-auto mono-data text-[10px]">{zones.length} ZONES</span>
+            </div>
+            {zones.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <MapPin className="w-8 h-8 text-muted-foreground mb-3" />
+                <p className="font-display font-semibold text-foreground mb-1">No zones configured</p>
+                <p className="mono-data text-[11px]">Create your first zone to begin deployment planning</p>
+              </div>
+            ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {zones.map(zone => (
                   <div key={zone._id} className="relative group">
-                    <ZoneCard zone={zone} onClick={() => handleEditZone(zone)} />
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteZone(zone._id)}
+                    <ZoneCard zone={zone} />
+
+                    <div className="absolute top-2 right-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1.5 z-10">
+                      <button
+                        onClick={() => router.push(`/dashboard/zones/${zone._id}`)}
+                        title="View zone details"
+                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-primary bg-primary-muted text-primary hover:bg-primary hover:text-primary-foreground transition-colors duration-150 backdrop-blur-sm"
                       >
-                        <X className="h-3 w-3" />
-                      </Button>
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleEditZone(zone)}
+                        title="Edit zone configuration"
+                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-accent bg-accent/10 text-accent hover:bg-accent hover:text-accent-foreground transition-colors duration-150 backdrop-blur-sm"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteZone(zone._id)}
+                        title="Delete zone"
+                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-danger bg-danger-muted text-danger hover:bg-danger hover:text-danger-foreground transition-colors duration-150 backdrop-blur-sm"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            )}
+          </div>
+        )}
 
-        <TabsContent value="map" className="mt-6">
-          <Card className="border-l-4 border-l-green-900">
-            <CardHeader className="bg-green-50 border-b">
-              <CardTitle className="text-green-900">Geospatial Deployment Map</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ZoneLeafletMap
-                zones={zones}
-                onZoneClick={(zoneId) => {
-                  const zone = zones.find(z => z._id === zoneId)
-                  if (zone) handleEditZone(zone)
-                }}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {activeTab === "map" && (
+          <div className="p-4 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Map className="w-4 h-4 text-success" />
+                <span className="font-display font-semibold text-sm text-foreground">Geospatial Deployment Map</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="status-dot-pulse bg-success" />
+                <span className="mono-data text-[10px] text-success">LIVE FEED</span>
+              </div>
+            </div>
+            <ZoneLeafletMap
+              zones={zones}
+              onZoneClick={zoneId => {
+                router.push(`/dashboard/zones/${zoneId}`)
+              }}
+            />
+          </div>
+        )}
 
-        <TabsContent value="heatmap" className="mt-6">
-          <Card className="border-l-4 border-l-orange-900">
-            <CardHeader className="bg-orange-50 border-b">
-              <CardTitle className="text-orange-900">Strategic Heatmap View</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ZoneHeatmap zones={zones} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        {activeTab === "heatmap" && (
+          <div className="p-4 animate-fade-in">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-4 h-4 text-warning" />
+              <span className="font-display font-semibold text-sm text-foreground">Strategic Heatmap View</span>
+              <span className="ml-auto mono-data text-[10px]">THREAT INTENSITY</span>
+            </div>
+            <ZoneHeatmap zones={zones} />
+          </div>
+        )}
+      </div>
     </div>
-  )
-}
-
-function ZoneStatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
-  const colorClasses: Record<string, string> = {
-    blue: "bg-blue-50 border-l-blue-500 text-blue-900",
-    green: "bg-green-50 border-l-green-500 text-green-900",
-    indigo: "bg-indigo-50 border-l-indigo-500 text-indigo-900",
-    red: "bg-red-50 border-l-red-500 text-red-900"
-  }
-
-  return (
-    <Card className={`border-l-4 ${colorClasses[color]}`}>
-      <CardContent className="pt-4">
-        <p className="text-xs font-semibold opacity-75 uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold mt-1">{value}</p>
-      </CardContent>
-    </Card>
   )
 }

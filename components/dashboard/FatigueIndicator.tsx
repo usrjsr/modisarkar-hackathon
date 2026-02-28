@@ -1,48 +1,47 @@
-import { cn } from "@/lib/utils";
+"use client"
 
 interface FatigueIndicatorProps {
-    score: number; // 0-10 scale
-    showLabel?: boolean;
+  score: number
 }
 
-export default function FatigueIndicator({ score, showLabel = true }: FatigueIndicatorProps) {
-    // Convert 0-10 score to percentage
-    const percentage = Math.min(Math.max(score * 10, 0), 100);
+export default function FatigueIndicator({ score }: FatigueIndicatorProps) {
+  const getFatigueLevel = (
+    scoreVal: number
+  ): { label: string; accent: string; color: string } => {
+    if (scoreVal >= 30) return { label: "CRITICAL", accent: "danger", color: "bg-danger" }
+    if (scoreVal >= 20) return { label: "HIGH", accent: "warning", color: "bg-warning" }
+    if (scoreVal >= 10) return { label: "MEDIUM", accent: "accent", color: "bg-accent" }
+    return { label: "LOW", accent: "success", color: "bg-success" }
+  }
 
-    // Determine color based on severity
-    let colorClass = "bg-green-500";
-    let statusText = "Safe";
+  const fatigue = getFatigueLevel(score)
+  const percentage = Math.min(100, (score / 40) * 100)
 
-    if (score >= 8) {
-        colorClass = "bg-red-600";
-        statusText = "Critical";
-    } else if (score >= 5) {
-        colorClass = "bg-yellow-500";
-        statusText = "Warning";
-    }
-
-    return (
-        <div className="w-full space-y-1">
-            {showLabel && (
-                <div className="flex justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">Fatigue Load</span>
-                    <span className={cn("font-bold",
-                        score >= 8 ? "text-red-600" :
-                            score >= 5 ? "text-yellow-600" : "text-green-600"
-                    )}>
-                        {score.toFixed(1)} ({statusText})
-                    </span>
-                </div>
-            )}
-            {/* Customizing Progress color via class override/style not always easy in shadcn, 
-          so we wrap it or use inline styles for the indicator if needed. 
-          For standard tailwind, we rely on the parent text color or custom indicator classes. */}
-            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                <div
-                    className={cn("h-full transition-all", colorClass)}
-                    style={{ width: `${percentage}%` }}
-                />
-            </div>
-        </div>
-    );
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="mono-data text-[10px] uppercase tracking-widest">Avg Fatigue</span>
+        <span className={`font-mono font-bold text-xs text-${fatigue.accent}`}>
+          {score.toFixed(1)}%
+        </span>
+      </div>
+      <div className="h-1.5 bg-surface-overlay rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${fatigue.color}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span
+        className={`
+          inline-block font-mono text-[9px] font-bold px-2 py-0.5 rounded-sm border
+          ${fatigue.accent === "danger" ? "border-danger bg-danger-muted text-danger" : ""}
+          ${fatigue.accent === "warning" ? "border-warning bg-warning-muted text-warning" : ""}
+          ${fatigue.accent === "accent" ? "border-accent bg-accent/10 text-accent" : ""}
+          ${fatigue.accent === "success" ? "border-success bg-success-muted text-success" : ""}
+        `}
+      >
+        {fatigue.label}
+      </span>
+    </div>
+  )
 }

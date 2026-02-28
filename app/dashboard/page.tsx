@@ -1,72 +1,96 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import Link from "next/link"
 import AlertBanner from "@/components/dashboard/AlertBanner"
 import ZoneHeatmap from "@/components/dashboard/ZoneHeatmap"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
-import { Users, MapPin, AlertTriangle, Shield, Clock, TrendingUp, Settings } from "lucide-react"
+import {
+  Users, MapPin, AlertTriangle, Shield,
+  Clock, TrendingUp, Settings, ChevronRight,
+  Activity, Radio, Zap, BarChart3
+} from "lucide-react"
 import { Zone } from "@/lib/types/dashboard"
 import dynamic from "next/dynamic"
 
-const ZoneLeafletMap = dynamic(() => import("@/components/dashboard/ZoneLeafletMap"), { ssr: false, loading: () => <div className="h-[350px] flex items-center justify-center bg-gray-100 rounded-lg"><p className="text-gray-500">Loading map...</p></div> })
+const ZoneLeafletMap = dynamic(
+  () => import("@/components/dashboard/ZoneLeafletMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[350px] flex items-center justify-center bg-surface border border-border rounded-md">
+        <div className="flex items-center gap-2">
+          <span className="status-dot-pulse bg-primary" />
+          <span className="mono-data">LOADING MAP...</span>
+        </div>
+      </div>
+    )
+  }
+)
 
 function calculateZScore(S: number, D: number, w_s = 0.3, w_d = 0.7) {
   return (w_s * S + w_d * D) / (w_s + w_d)
 }
+
 function resolveHeatmapColor(zScore: number) {
   const normalised = ((zScore - 1) / 9) * 10
-  if (normalised >= 7.5) return 'red'
-  if (normalised >= 5.0) return 'orange'
-  if (normalised >= 2.5) return 'yellow'
-  return 'green'
+  if (normalised >= 7.5) return "red"
+  if (normalised >= 5.0) return "orange"
+  if (normalised >= 2.5) return "yellow"
+  return "green"
 }
 
 export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState("")
   const [zones, setZones] = useState<Zone[]>([])
-  const [, setLoading] = useState(true)
   const [totalForce, setTotalForce] = useState(0)
   const [standbyPct, setStandbyPct] = useState(0.15)
   const [weights, setWeights] = useState({ w_s: 0.3, w_d: 0.7 })
   const [configVersion, setConfigVersion] = useState(0)
-  const [personnelStats, setPersonnelStats] = useState({ total: 0, deployed: 0, onLeave: 0, standby: 0 })
-  useEffect(() => { setCurrentTime(new Date().toLocaleString()) }, [])
+  const [personnelStats, setPersonnelStats] = useState({
+    total: 0, deployed: 0, onLeave: 0, standby: 0,
+  })
+
+  useEffect(() => {
+    const update = () =>
+      setCurrentTime(
+        new Date().toLocaleString("en-IN", {
+          day: "2-digit", month: "short", year: "numeric",
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+          hour12: false,
+        })
+      )
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     async function fetchZones() {
       try {
-        const res = await fetch('/api/zones')
+        const res = await fetch("/api/zones")
         const result = await res.json()
-        if (result.success && result.data && result.data.length > 0) {
-          setZones(result.data.map((z: any) => ({
-            _id: z._id,
-            name: z.name,
-            code: z.code,
-            sizeScore: z.sizeScore,
-            densityScore: z.densityScore,
-            currentDeployment: z.currentDeployment ?? 0,
-            safeThreshold: z.safeThreshold ?? 0,
-            zScore: z.zScore ?? calculateZScore(z.sizeScore, z.densityScore),
-            heatmapColor: z.heatmapColor ?? resolveHeatmapColor(z.zScore ?? calculateZScore(z.sizeScore, z.densityScore)),
-            centroid: z.centroid ?? { coordinates: [77.22, 28.60] }
-          })))
+        if (result.success && result.data?.length > 0) {
+          setZones(
+            result.data.map((z: any) => ({
+              _id: z._id,
+              name: z.name,
+              code: z.code,
+              sizeScore: z.sizeScore,
+              densityScore: z.densityScore,
+              currentDeployment: z.currentDeployment ?? 0,
+              safeThreshold: z.safeThreshold ?? 0,
+              zScore: z.zScore ?? calculateZScore(z.sizeScore, z.densityScore),
+              heatmapColor: z.heatmapColor ?? resolveHeatmapColor(z.zScore ?? calculateZScore(z.sizeScore, z.densityScore)),
+              centroid: z.centroid ?? { coordinates: [77.22, 28.6] },
+            }))
+          )
         }
-      } catch (err) {
-        console.error('Failed to fetch zones:', err)
-      } finally {
-        setLoading(false)
-      }
+      } catch (err) { console.error(err) }
     }
-    fetchZones()
 
-    // Fetch system config
     async function fetchConfig() {
       try {
-        const res = await fetch('/api/settings')
+        const res = await fetch("/api/settings")
         const result = await res.json()
         if (result.success && result.data) {
           setTotalForce(result.data.totalForce ?? 0)
@@ -74,26 +98,27 @@ export default function DashboardPage() {
           setWeights(result.data.weights ?? { w_s: 0.3, w_d: 0.7 })
           setConfigVersion(result.data.version ?? 0)
         }
-      } catch (err) { console.error('Failed to fetch config:', err) }
+      } catch (err) { console.error(err) }
     }
-    fetchConfig()
 
-    // Fetch personnel stats
     async function fetchPersonnel() {
       try {
-        const res = await fetch('/api/personnel?limit=500')
+        const res = await fetch("/api/personnel?limit=500")
         const result = await res.json()
         if (result.success && result.data) {
           const all = result.data
           setPersonnelStats({
             total: all.length,
-            deployed: all.filter((p: any) => p.status === 'Deployed').length,
-            onLeave: all.filter((p: any) => p.status === 'OnLeave').length,
-            standby: all.filter((p: any) => p.status === 'Standby').length,
+            deployed: all.filter((p: any) => p.status === "Deployed").length,
+            onLeave: all.filter((p: any) => p.status === "OnLeave").length,
+            standby: all.filter((p: any) => p.status === "Standby").length,
           })
         }
-      } catch (err) { console.error('Failed to fetch personnel:', err) }
+      } catch (err) { console.error(err) }
     }
+
+    fetchZones()
+    fetchConfig()
     fetchPersonnel()
   }, [])
 
@@ -101,251 +126,251 @@ export default function DashboardPage() {
   const standbyPoolSize = Math.floor(totalForce * standbyPct)
   const availableForReassignment = totalForce - totalDeployed - standbyPoolSize
   const criticalZones = zones.filter(z => z.currentDeployment > z.safeThreshold).length
-  const utilizationRate = totalForce > 0 ? ((totalDeployed / totalForce) * 100).toFixed(1) : '0.0'
-
-  // Determine current shift from clock
+  const utilizationRate = totalForce > 0 ? ((totalDeployed / totalForce) * 100).toFixed(1) : "0.0"
   const currentHour = new Date().getHours()
-  const activeShift = currentHour >= 6 && currentHour < 14 ? 'Morning'
-    : currentHour >= 14 && currentHour < 22 ? 'Evening' : 'Night'
-  const activeShiftTime = activeShift === 'Morning' ? '06:00' : activeShift === 'Evening' ? '14:00' : '22:00'
-  const standbyPctDisplay = Math.round(standbyPct * 100)
+  const activeShift = currentHour >= 6 && currentHour < 14 ? "Morning" : currentHour >= 14 && currentHour < 22 ? "Evening" : "Night"
+  const activeShiftTime = activeShift === "Morning" ? "06:00–14:00" : activeShift === "Evening" ? "14:00–22:00" : "22:00–06:00"
 
   return (
-    <div className="space-y-6">
-      <div className="border-b-2 border-blue-900 pb-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-blue-900">Operation Sentinel</h1>
-            <p className="text-sm text-gray-600 mt-1">Police Control Room Command Dashboard</p>
+    <div className="p-4 md:p-6 space-y-5 animate-fade-in">
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="tag-primary">CONTROL ROOM</span>
+            <span className="tag-success">LIVE</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right text-sm text-gray-500">
-              <p>Generated: {currentTime}</p>
-              <p className="font-mono">Event: Major Public Event - 30 Day Schedule</p>
-            </div>
-            <Link href="/dashboard/settings">
-              <Button variant="outline" size="sm" className="border-blue-900 text-blue-900 hover:bg-blue-50">
-                <Settings className="h-4 w-4 mr-1" />
-                Settings
-              </Button>
-            </Link>
+          <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+            Operation Sentinel
+          </h1>
+          <p className="mono-data mt-1">
+            Police Force Deployment · 30-Day Schedule Active
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex flex-col items-end gap-0.5 mr-2">
+            <span className="mono-data text-[10px]">LAST SYNC</span>
+            <span className="font-mono text-xs text-foreground">{currentTime}</span>
           </div>
+          <Link href="/dashboard/settings">
+            <button className="flex items-center gap-1.5 px-3 py-2 bg-surface border border-border hover:border-border-strong hover:bg-surface-raised rounded-md transition-colors duration-150">
+              <Settings className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Settings</span>
+            </button>
+          </Link>
+          <Link href="/dashboard/incidents">
+            <button className="flex items-center gap-1.5 px-3 py-2 bg-danger text-danger-foreground hover:bg-danger/90 rounded-md transition-colors duration-150">
+              <Zap className="w-3.5 h-3.5" />
+              <span className="text-sm font-medium">Simulate</span>
+            </button>
+          </Link>
         </div>
       </div>
 
       {criticalZones > 0 && (
         <AlertBanner
           type="critical"
-          title={`⚠️ CRITICAL: ${criticalZones} Zone(s) Over Capacity`}
-          message={`Immediate rebalancing required. Click on Zones to reassign personnel or activate standby reserves.`}
+          title={`CRITICAL: ${criticalZones} Zone(s) Over Capacity`}
+          message="Immediate rebalancing required. Navigate to Zones to reassign personnel or activate standby reserves."
         />
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard
-          label="Total Force"
-          value={totalForce}
-          subtext="Personnel"
-          icon={<Users className="h-5 w-5" />}
-          color="blue"
-        />
-        <StatCard
-          label="Deployed"
-          value={totalDeployed}
-          subtext={`${utilizationRate}% utilised`}
-          icon={<Shield className="h-5 w-5" />}
-          color="green"
-        />
-        <StatCard
-          label="Standby Pool"
-          value={standbyPoolSize}
-          subtext={`${standbyPctDisplay}% Reserve`}
-          icon={<AlertTriangle className="h-5 w-5" />}
-          color="amber"
-        />
-        <StatCard
-          label="Zones Active"
-          value={zones.length}
-          subtext={`${criticalZones} critical`}
-          icon={<MapPin className="h-5 w-5" />}
-          color={criticalZones > 0 ? "red" : "green"}
-        />
-        <StatCard
-          label="Available"
-          value={availableForReassignment}
-          subtext="For Redeployment"
-          icon={<TrendingUp className="h-5 w-5" />}
-          color="indigo"
-        />
-        <StatCard
-          label="Shift Time"
-          value={activeShiftTime}
-          subtext={`${activeShift} Active`}
-          icon={<Clock className="h-5 w-5" />}
-          color="purple"
-        />
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <StatCard label="Total Force" value={totalForce} subtext="Personnel" icon={Users} accent="primary" />
+        <StatCard label="Deployed" value={totalDeployed} subtext={`${utilizationRate}% utilised`} icon={Shield} accent="success" />
+        <StatCard label="Standby Pool" value={standbyPoolSize} subtext={`${Math.round(standbyPct * 100)}% Reserve`} icon={AlertTriangle} accent="warning" />
+        <StatCard label="Zones Active" value={zones.length} subtext={`${criticalZones} critical`} icon={MapPin} accent={criticalZones > 0 ? "danger" : "success"} />
+        <StatCard label="Available" value={availableForReassignment} subtext="For Redeployment" icon={TrendingUp} accent="accent" />
+        <StatCard label="Active Shift" value={activeShift} subtext={activeShiftTime} icon={Clock} accent="primary" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 border-l-4 border-l-blue-900">
-          <CardHeader className="bg-blue-50 border-b">
-            <CardTitle className="text-blue-900">Geospatial Zone Map</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
+      <div className="grid xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2 sentinel-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary" />
+              <span className="font-display font-semibold text-sm text-foreground">Geospatial Zone Map</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="status-dot-pulse bg-success" />
+              <span className="mono-data text-[10px] text-success">LIVE FEED</span>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
             <ZoneLeafletMap zones={zones} />
-            <div className="mt-4">
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="mono-data text-[10px] uppercase tracking-widest">Zone Threat Heatmap</span>
+              </div>
               <ZoneHeatmap zones={zones} />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="border-l-4 border-l-green-700">
-          <CardHeader className="bg-green-50 border-b">
-            <CardTitle className="text-green-900 text-base">Operational Status</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <StatusRow label="Morning Shift" status={activeShift === 'Morning' ? 'Active' : currentHour >= 14 ? 'Completed' : 'Scheduled'} count={personnelStats.deployed} />
-            <StatusRow label="Evening Shift" status={activeShift === 'Evening' ? 'Active' : currentHour >= 22 || currentHour < 6 ? 'Completed' : 'Scheduled'} count={personnelStats.deployed} />
-            <StatusRow label="Night Shift" status={activeShift === 'Night' ? 'Active' : 'Scheduled'} count={personnelStats.deployed} />
-            <div className="border-t pt-4 mt-4">
-              <p className="text-xs text-gray-500 font-semibold">ALERT SUMMARY</p>
-              <div className="mt-2 space-y-1">
-                <AlertItem label="Critical Zones" value={criticalZones} color="red" />
-                <AlertItem label="Standby Officers" value={personnelStats.standby} color="yellow" />
-                <AlertItem label="On Leave" value={personnelStats.onLeave} color="blue" />
+        <div className="space-y-4">
+          <div className="sentinel-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised">
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-success" />
+                <span className="font-display font-semibold text-sm text-foreground">Shift Status</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="divide-y divide-border">
+              {[
+                {
+                  label: "Morning Shift", time: "06:00–14:00",
+                  status: activeShift === "Morning" ? "ACTIVE" : currentHour >= 14 ? "DONE" : "SCHED",
+                  active: activeShift === "Morning",
+                },
+                {
+                  label: "Evening Shift", time: "14:00–22:00",
+                  status: activeShift === "Evening" ? "ACTIVE" : currentHour >= 22 || currentHour < 6 ? "DONE" : "SCHED",
+                  active: activeShift === "Evening",
+                },
+                {
+                  label: "Night Shift", time: "22:00–06:00",
+                  status: activeShift === "Night" ? "ACTIVE" : "SCHED",
+                  active: activeShift === "Night",
+                },
+              ].map(shift => (
+                <div
+                  key={shift.label}
+                  className={`flex items-center justify-between px-4 py-3 ${shift.active ? "bg-success-muted" : ""}`}
+                >
+                  <div>
+                    <p className={`text-sm font-semibold ${shift.active ? "text-success" : "text-foreground"}`}>
+                      {shift.label}
+                    </p>
+                    <p className="mono-data">{shift.time}</p>
+                  </div>
+                  <span className={`font-mono text-[10px] font-bold px-2 py-1 rounded-sm border ${
+                    shift.status === "ACTIVE"
+                      ? "bg-success-muted border-success text-success"
+                      : shift.status === "DONE"
+                      ? "bg-muted border-border text-muted-foreground"
+                      : "bg-primary-muted border-primary text-primary"
+                  }`}>
+                    {shift.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="sentinel-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-surface-raised">
+              <span className="font-display font-semibold text-sm text-foreground">Alert Summary</span>
+            </div>
+            <div className="p-4 space-y-3">
+              {[
+                { label: "Critical Zones", value: criticalZones, accent: "danger" },
+                { label: "Standby Officers", value: personnelStats.standby, accent: "warning" },
+                { label: "Personnel On Leave", value: personnelStats.onLeave, accent: "primary" },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{item.label}</span>
+                  <span className={`font-mono font-bold text-sm text-${item.accent}`}>{item.value}</span>
+                </div>
+              ))}
+              <div className="border-t border-border pt-3 mt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Force Utilisation</span>
+                  <span className="font-mono font-bold text-sm text-foreground">{utilizationRate}%</span>
+                </div>
+                <div className="mt-2 h-1.5 bg-surface-overlay rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${utilizationRate}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="border-t-4 border-t-indigo-600">
-          <CardHeader className="bg-indigo-50 border-b">
-            <CardTitle className="text-indigo-900 text-base">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-3">
-            <Link href="/dashboard/zones">
-              <Button className="w-full justify-start bg-blue-600 hover:bg-blue-700">
-                <MapPin className="mr-2 h-4 w-4" />
-                Manage Zones
-              </Button>
-            </Link>
-            <Link href="/dashboard/personnel">
-              <Button className="w-full justify-start bg-green-600 hover:bg-green-700">
-                <Users className="mr-2 h-4 w-4" />
-                Personnel Management
-              </Button>
-            </Link>
-            <Link href="/dashboard/roster">
-              <Button className="w-full justify-start bg-purple-600 hover:bg-purple-700">
-                <Clock className="mr-2 h-4 w-4" />
-                View 30-Day Roster
-              </Button>
-            </Link>
-            <Link href="/dashboard/incidents">
-              <Button className="w-full justify-start bg-red-600 hover:bg-red-700">
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                Incident Simulation
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="sentinel-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-surface-raised">
+            <span className="font-display font-semibold text-sm text-foreground">Quick Actions</span>
+          </div>
+          <div className="p-3 grid grid-cols-2 gap-2">
+            {[
+              { label: "Manage Zones", href: "/dashboard/zones", icon: MapPin, accent: "bg-primary text-primary-foreground" },
+              { label: "Personnel", href: "/dashboard/personnel", icon: Users, accent: "bg-success text-success-foreground" },
+              { label: "30-Day Roster", href: "/dashboard/roster", icon: Clock, accent: "bg-accent text-accent-foreground" },
+              { label: "Incidents", href: "/dashboard/incidents", icon: AlertTriangle, accent: "bg-danger text-danger-foreground" },
+            ].map(action => (
+              <Link key={action.href} href={action.href}>
+                <button className={`w-full flex items-center justify-between px-3 py-3 rounded-md ${action.accent} hover:opacity-90 transition-opacity duration-150`}>
+                  <div className="flex items-center gap-2">
+                    <action.icon className="w-4 h-4" />
+                    <span className="text-sm font-semibold">{action.label}</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+                </button>
+              </Link>
+            ))}
+          </div>
+        </div>
 
-        <Card className="border-t-4 border-t-cyan-600">
-          <CardHeader className="bg-cyan-50 border-b">
-            <CardTitle className="text-cyan-900 text-base">System Information</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-2 text-sm">
-            <InfoRow label="Roster Period" value="30 Days" />
-            <InfoRow label="Total Zones" value={zones.length} />
-            <InfoRow label="Weight (Size)" value={weights.w_s.toFixed(2)} />
-            <InfoRow label="Weight (Density)" value={weights.w_d.toFixed(2)} />
-            <InfoRow label="Config Version" value={configVersion} />
-            <InfoRow label="Last Updated" value={currentTime.split(",")[0] || ""} />
-          </CardContent>
-        </Card>
+        <div className="sentinel-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-surface-raised">
+            <span className="font-display font-semibold text-sm text-foreground">System Information</span>
+          </div>
+          <div className="divide-y divide-border">
+            {[
+              { label: "Roster Period", value: "30 Days" },
+              { label: "Total Zones", value: zones.length },
+              { label: "Weight (Size)", value: weights.w_s.toFixed(2) },
+              { label: "Weight (Density)", value: weights.w_d.toFixed(2) },
+              { label: "Config Version", value: `v${configVersion}` },
+              { label: "Last Updated", value: currentTime.split(",")[0] || "—" },
+            ].map(row => (
+              <div key={row.label} className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-sm text-muted-foreground">{row.label}</span>
+                <span className="font-mono text-sm font-semibold text-foreground">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
+
     </div>
   )
 }
 
+type Accent = "primary" | "success" | "warning" | "danger" | "accent"
+
 function StatCard({
-  label,
-  value,
-  subtext,
-  icon,
-  color
+  label, value, subtext, icon: Icon, accent,
 }: {
   label: string
   value: number | string
   subtext: string
-  icon: React.ReactNode
-  color: string
+  icon: React.ElementType
+  accent: Accent
 }) {
-  const colorClasses = {
-    blue: "bg-blue-50 border-l-blue-500 text-blue-900",
-    green: "bg-green-50 border-l-green-500 text-green-900",
-    amber: "bg-amber-50 border-l-amber-500 text-amber-900",
-    red: "bg-red-50 border-l-red-500 text-red-900",
-    indigo: "bg-indigo-50 border-l-indigo-500 text-indigo-900",
-    purple: "bg-purple-50 border-l-purple-500 text-purple-900"
+  const accentMap: Record<Accent, { border: string; icon: string; value: string }> = {
+    primary: { border: "border-t-primary", icon: "text-primary", value: "text-primary" },
+    success: { border: "border-t-success", icon: "text-success", value: "text-success" },
+    warning: { border: "border-t-warning", icon: "text-warning", value: "text-warning" },
+    danger:  { border: "border-t-danger",  icon: "text-danger",  value: "text-danger"  },
+    accent:  { border: "border-t-accent",  icon: "text-accent",  value: "text-accent"  },
   }
 
-  return (
-    <Card className={`border-l-4 ${colorClasses[color as keyof typeof colorClasses]}`}>
-      <CardContent className="pt-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-semibold opacity-75 uppercase tracking-wide">{label}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
-            <p className="text-xs mt-1 opacity-70">{subtext}</p>
-          </div>
-          <div className="opacity-50">{icon}</div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function StatusRow({ label, status, count }: { label: string; status: string; count: number }) {
-  const statusColors = {
-    Active: "bg-green-100 text-green-800",
-    Completed: "bg-blue-100 text-blue-800",
-    Scheduled: "bg-gray-100 text-gray-800"
-  }
+  const c = accentMap[accent]
 
   return (
-    <div className="flex items-center justify-between py-2 border-b pb-2">
-      <span className="text-sm font-medium">{label}</span>
-      <div className="flex items-center gap-2">
-        <Badge className={statusColors[status as keyof typeof statusColors]}>{status}</Badge>
-        <span className="text-sm font-bold text-gray-700">{count}</span>
+    <div className={`sentinel-card border-t-2 ${c.border} p-4 flex flex-col gap-2`}>
+      <div className="flex items-center justify-between">
+        <span className="mono-data text-[10px] uppercase tracking-widest">{label}</span>
+        <Icon className={`w-4 h-4 ${c.icon}`} />
       </div>
-    </div>
-  )
-}
-
-function AlertItem({ label, value, color }: { label: string; value: number; color: string }) {
-  const colorClasses = {
-    red: "text-red-600",
-    yellow: "text-yellow-600",
-    blue: "text-blue-600"
-  }
-
-  return (
-    <div className="flex justify-between text-xs">
-      <span className="text-gray-600">{label}:</span>
-      <span className={`font-bold ${colorClasses[color as keyof typeof colorClasses]}`}>{value}</span>
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex justify-between py-1">
-      <span className="text-gray-600">{label}:</span>
-      <span className="font-semibold text-gray-900">{value}</span>
+      <p className={`font-display text-2xl font-bold tracking-tight ${c.value}`}>{value}</p>
+      <p className="mono-data text-[10px]">{subtext}</p>
     </div>
   )
 }

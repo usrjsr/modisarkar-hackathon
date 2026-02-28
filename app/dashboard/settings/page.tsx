@@ -1,22 +1,28 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Settings, Save, AlertCircle, RefreshCw } from "lucide-react"
+import { Settings, Save, AlertCircle, RefreshCw, CheckCircle } from "lucide-react"
 
 const RANK_GROUPS = [
-  { label: 'Command Level (not field-deployed)', ranks: ['DGP', 'ADGP', 'IG'] as const },
-  { label: 'Strategic Oversight', ranks: ['DIG', 'SP'] as const },
-  { label: 'Zone Managers', ranks: ['DSP', 'ASP', 'Inspector'] as const },
-  { label: 'Sector Duty', ranks: ['SI', 'ASI', 'HeadConstable', 'Constable'] as const },
+  { label: "Command Level (not field-deployed)", ranks: ["DGP", "ADGP", "IG"] as const },
+  { label: "Strategic Oversight", ranks: ["DIG", "SP"] as const },
+  { label: "Zone Managers", ranks: ["DSP", "ASP", "Inspector"] as const },
+  { label: "Sector Duty", ranks: ["SI", "ASI", "HeadConstable", "Constable"] as const },
 ]
 
 const DEFAULT_COMPOSITION: Record<string, number> = {
-  DGP: 1, ADGP: 2, IG: 5, DIG: 10, SP: 15, DSP: 20, ASP: 25,
-  Inspector: 50, SI: 80, ASI: 100, HeadConstable: 200, Constable: 492,
+  DGP: 1,
+  ADGP: 2,
+  IG: 5,
+  DIG: 10,
+  SP: 15,
+  DSP: 20,
+  ASP: 25,
+  Inspector: 50,
+  SI: 80,
+  ASI: 100,
+  HeadConstable: 200,
+  Constable: 492,
 }
 
 export default function SettingsPage() {
@@ -47,7 +53,7 @@ export default function SettingsPage() {
   const fetchConfig = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/settings')
+      const res = await fetch("/api/settings")
       const result = await res.json()
       if (result.success && result.data) {
         const d = result.data
@@ -81,9 +87,9 @@ export default function SettingsPage() {
     setError(null)
     setSaved(false)
     try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           totalForce: config.totalForce,
           weights: {
@@ -96,7 +102,7 @@ export default function SettingsPage() {
             inspectors: config.minRestHoursInspector,
           },
           forceComposition,
-        })
+        }),
       })
       const result = await res.json()
       if (result.success) {
@@ -105,10 +111,10 @@ export default function SettingsPage() {
         setConfigVersion(prev => prev + 1)
         setTimeout(() => setSaved(false), 3000)
       } else {
-        setError(result.error || 'Failed to save config')
+        setError(result.error || "Failed to save config")
       }
     } catch {
-      setError('Error saving configuration')
+      setError("Error saving configuration")
     } finally {
       setSaving(false)
     }
@@ -132,272 +138,323 @@ export default function SettingsPage() {
   const validationErrors = verifyConfig()
   const standbyCount = Math.floor(config.totalForce * (config.standbyPercentage / 100))
   const activeForce = config.totalForce - standbyCount
+  const compositionSum = Object.values(forceComposition).reduce((a, b) => a + b, 0)
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading configuration...</p>
+        <div className="flex items-center gap-3">
+          <span className="status-dot-pulse bg-primary" />
+          <span className="mono-data">LOADING CONFIGURATION...</span>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="border-b-2 border-blue-900 pb-4">
-        <h1 className="text-3xl font-bold text-blue-900">System Settings & Configuration</h1>
-        <p className="text-sm text-gray-600 mt-1">Operation Sentinel - Admin Control Panel</p>
+    <div className="p-4 md:p-6 space-y-5 animate-fade-in">
+
+      <div className="pb-4 border-b border-border">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="tag-primary">SETTINGS</span>
+          <span className="tag-primary">ADMIN</span>
+        </div>
+        <h1 className="font-display text-3xl font-bold text-foreground tracking-tight">System Settings & Configuration</h1>
+        <p className="mono-data mt-2">Operation Sentinel - Global Parameters & Force Composition</p>
       </div>
 
       {saved && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-green-900 flex items-center gap-2">
-          <Badge className="bg-green-100 text-green-800">Saved</Badge>
-          <span className="text-sm">Configuration saved to database successfully</span>
+        <div className="sentinel-card border-l-4 border-l-success bg-success-muted p-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-success shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-success text-sm">Configuration Saved</p>
+              <p className="mono-data text-[11px] mt-0.5 text-success">Settings updated to database successfully</p>
+            </div>
+          </div>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-900 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
-          <span className="text-sm">{error}</span>
+        <div className="sentinel-card border-l-4 border-l-danger bg-danger-muted p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-danger text-sm">Error</p>
+              <p className="mono-data text-[11px] mt-0.5 text-danger">{error}</p>
+            </div>
+          </div>
         </div>
       )}
 
       {validationErrors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="font-semibold text-red-900 flex items-center gap-2 mb-2">
-            <AlertCircle className="h-4 w-4" />
-            Configuration Errors
-          </p>
-          <ul className="text-sm text-red-800 space-y-1">
-            {validationErrors.map((err, idx) => (
-              <li key={idx} className="ml-6 list-disc">{err}</li>
-            ))}
-          </ul>
+        <div className="sentinel-card border-l-4 border-l-warning bg-warning-muted p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-warning text-sm">Configuration Errors</p>
+              <ul className="mono-data text-[10px] mt-2 space-y-1">
+                {validationErrors.map((err, idx) => (
+                  <li key={idx}>• {err}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50">
-          <CardContent className="pt-6">
-            <p className="text-xs font-semibold text-gray-600 uppercase">Total Available Force</p>
-            <p className="text-3xl font-bold text-blue-900 mt-1">{config.totalForce}</p>
-            <p className="text-sm text-gray-600 mt-2">Personnel</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="sentinel-card border-t-2 border-t-primary p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-data text-[10px]">Total Available Force</span>
+          </div>
+          <p className="font-display text-3xl font-bold text-primary">{config.totalForce}</p>
+          <p className="mono-data text-[10px] mt-1 text-muted-foreground">Personnel</p>
+        </div>
 
-        <Card className="border-l-4 border-l-green-500 bg-green-50">
-          <CardContent className="pt-6">
-            <p className="text-xs font-semibold text-gray-600 uppercase">Active Deployment Force</p>
-            <p className="text-3xl font-bold text-green-900 mt-1">{activeForce}</p>
-            <p className="text-sm text-gray-600 mt-2">Available for deployment</p>
-          </CardContent>
-        </Card>
+        <div className="sentinel-card border-t-2 border-t-success p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-data text-[10px]">Active Deployment</span>
+          </div>
+          <p className="font-display text-3xl font-bold text-success">{activeForce}</p>
+          <p className="mono-data text-[10px] mt-1 text-muted-foreground">Available force</p>
+        </div>
 
-        <Card className="border-l-4 border-l-amber-500 bg-amber-50">
-          <CardContent className="pt-6">
-            <p className="text-xs font-semibold text-gray-600 uppercase">Standby Reserve Pool</p>
-            <p className="text-3xl font-bold text-amber-900 mt-1">{standbyCount}</p>
-            <p className="text-sm text-gray-600 mt-2">Personnel ({config.standbyPercentage}%)</p>
-          </CardContent>
-        </Card>
+        <div className="sentinel-card border-t-2 border-t-warning p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-data text-[10px]">Standby Reserve</span>
+          </div>
+          <p className="font-display text-3xl font-bold text-warning">{standbyCount}</p>
+          <p className="mono-data text-[10px] mt-1 text-muted-foreground">{config.standbyPercentage}% reserve</p>
+        </div>
       </div>
 
-      <Card className="border-l-4 border-l-teal-900">
-        <CardHeader className="bg-teal-50 border-b">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-teal-900">Force Composition (per rank)</CardTitle>
-            <Badge className="bg-teal-100 text-teal-800">
-              Sum: {Object.values(forceComposition).reduce((a, b) => a + b, 0)} / {config.totalForce}
-            </Badge>
+      <div className="sentinel-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border bg-surface-raised">
+          <div className="flex items-center justify-between">
+            <span className="font-display font-semibold text-sm text-foreground">Force Composition (per rank)</span>
+            <span className={`font-mono text-xs font-bold px-2 py-1 rounded-sm border ${
+              compositionSum === config.totalForce
+                ? "border-success bg-success-muted text-success"
+                : "border-warning bg-warning-muted text-warning"
+            }`}>
+              Sum: {compositionSum} / {config.totalForce}
+            </span>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-5">
+        </div>
+
+        <div className="p-4 space-y-5">
           {RANK_GROUPS.map(group => (
             <div key={group.label}>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{group.label}</p>
+              <p className="mono-data text-[10px] uppercase tracking-widest mb-3">{group.label}</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {group.ranks.map(rank => (
                   <div key={rank}>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">{rank}</label>
-                    <Input
+                    <label className="text-xs font-semibold text-foreground mb-1.5 block">{rank}</label>
+                    <input
                       type="number"
                       min="0"
                       value={forceComposition[rank] ?? 0}
-                      onChange={(e) => setForceComposition(prev => ({ ...prev, [rank]: parseInt(e.target.value) || 0 }))}
-                      className="w-full"
+                      onChange={e => setForceComposition(prev => ({ ...prev, [rank]: parseInt(e.target.value) || 0 }))}
+                      className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                     />
                   </div>
                 ))}
               </div>
             </div>
           ))}
-          {Object.values(forceComposition).reduce((a, b) => a + b, 0) !== config.totalForce && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
-              <p className="text-xs text-amber-800 font-semibold">
-                ⚠ Composition sum ({Object.values(forceComposition).reduce((a, b) => a + b, 0)}) does not match Total Force ({config.totalForce})
+
+          {compositionSum !== config.totalForce && (
+            <div className="sentinel-card border-l-4 border-l-warning bg-warning-muted p-3">
+              <p className="mono-data text-[10px] text-warning font-bold">
+                ⚠ Composition sum ({compositionSum}) does not match Total Force ({config.totalForce})
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="border-l-4 border-l-blue-900">
-          <CardHeader className="bg-blue-50 border-b">
-            <CardTitle className="text-blue-900 flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Force Configuration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="sentinel-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-surface-raised flex items-center gap-2">
+            <Settings className="w-4 h-4 text-primary" />
+            <span className="font-display font-semibold text-sm text-foreground">Force Configuration</span>
+          </div>
+
+          <div className="p-4 space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Total Personnel (F)</label>
-                <Input
+                <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Total Personnel (F)</label>
+                <input
                   type="number"
                   value={config.totalForce}
-                  onChange={(e) => handleConfigChange("totalForce", parseInt(e.target.value) || 0)}
-                  className="w-full"
+                  onChange={e => handleConfigChange("totalForce", parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Standby % (Reserve)</label>
-                <Input
+                <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Standby % (Reserve)</label>
+                <input
                   type="number"
                   min="10"
                   max="30"
                   value={config.standbyPercentage}
-                  onChange={(e) => handleConfigChange("standbyPercentage", parseInt(e.target.value) || 15)}
-                  className="w-full"
+                  onChange={e => handleConfigChange("standbyPercentage", parseInt(e.target.value) || 15)}
+                  className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="border-l-4 border-l-purple-900">
-          <CardHeader className="bg-purple-50 border-b">
-            <CardTitle className="text-purple-900">Scheduling Algorithm</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-purple-900 font-semibold mb-2">Formula: Zscore = (ws · S + wd · D) / (ws + wd)</p>
-              <p className="text-xs text-purple-800">Determines proportional personnel distribution across zones</p>
+        <div className="sentinel-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-surface-raised">
+            <span className="font-display font-semibold text-sm text-foreground">Scheduling Algorithm</span>
+          </div>
+
+          <div className="p-4 space-y-4">
+            <div className="bg-primary-muted border border-primary rounded-md p-3">
+              <p className="text-xs font-bold text-primary mb-1">Formula: Z = (w_s · S + w_d · D) / (w_s + w_d)</p>
+              <p className="mono-data text-[10px] text-primary">Determines personnel distribution across zones</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Weight: Size (ws)</label>
-                <Input
+                <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Weight: Size (w_s)</label>
+                <input
                   type="number"
                   min="0"
                   max="1"
                   step="0.1"
                   value={config.weightSize}
-                  onChange={(e) => handleConfigChange("weightSize", parseFloat(e.target.value) || 0)}
-                  className="w-full"
+                  onChange={e => handleConfigChange("weightSize", parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Weight: Density (wd)</label>
-                <Input
+                <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Weight: Density (w_d)</label>
+                <input
                   type="number"
                   min="0"
                   max="1"
                   step="0.1"
                   value={config.weightDensity}
-                  onChange={(e) => handleConfigChange("weightDensity", parseFloat(e.target.value) || 0)}
-                  className="w-full"
+                  onChange={e => handleConfigChange("weightDensity", parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Roster Duration</label>
-                <Input type="number" value={config.rosterDays} readOnly className="w-full bg-gray-50" />
+                <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Roster Duration</label>
+                <input
+                  type="number"
+                  value={config.rosterDays}
+                  readOnly
+                  className="w-full px-3 py-2 text-sm bg-surface-overlay border border-border rounded-md text-muted-foreground"
+                />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Shifts Per Day</label>
-                <Input type="number" value={config.shiftsPerDay} readOnly className="w-full bg-gray-50" />
+                <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Shifts Per Day</label>
+                <input
+                  type="number"
+                  value={config.shiftsPerDay}
+                  readOnly
+                  className="w-full px-3 py-2 text-sm bg-surface-overlay border border-border rounded-md text-muted-foreground"
+                />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      <Card className="border-l-4 border-l-indigo-900">
-        <CardHeader className="bg-indigo-50 border-b">
-          <CardTitle className="text-indigo-900">Rest & Fatigue Parameters</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
+      <div className="sentinel-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border bg-surface-raised">
+          <span className="font-display font-semibold text-sm text-foreground">Rest & Fatigue Parameters</span>
+        </div>
+
+        <div className="p-4 space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Min Rest Hours (Sector Duty)</label>
-              <Input
+              <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Min Rest Hours (Sector Duty)</label>
+              <input
                 type="number"
                 value={config.minRestHours}
-                onChange={(e) => handleConfigChange("minRestHours", parseInt(e.target.value) || 8)}
-                className="w-full"
+                onChange={e => handleConfigChange("minRestHours", parseInt(e.target.value) || 8)}
+                className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
               />
-              <p className="text-xs text-gray-600 mt-1">For Constables, ASI, SI, Head Constables</p>
+              <p className="mono-data text-[10px] text-muted-foreground mt-1">Constables, ASI, SI, Head Constables</p>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Min Rest Hours (Zone Managers)</label>
-              <Input
+              <label className="mono-data text-[10px] uppercase tracking-widest block mb-2">Min Rest Hours (Zone Managers)</label>
+              <input
                 type="number"
                 value={config.minRestHoursInspector}
-                onChange={(e) => handleConfigChange("minRestHoursInspector", parseInt(e.target.value) || 12)}
-                className="w-full"
+                onChange={e => handleConfigChange("minRestHoursInspector", parseInt(e.target.value) || 12)}
+                className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
               />
-              <p className="text-xs text-gray-600 mt-1">For Inspectors, ASP, DSP</p>
+              <p className="mono-data text-[10px] text-muted-foreground mt-1">Inspectors, ASP, DSP</p>
             </div>
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
-            <p className="font-semibold mb-1">Fatigue Multipliers by Shift</p>
-            <ul className="text-xs space-y-0.5">
+
+          <div className="bg-accent-muted border border-accent rounded-md p-3">
+            <p className="font-semibold text-xs text-accent mb-2">Fatigue Multipliers by Shift</p>
+            <ul className="mono-data text-[10px] space-y-1 text-accent">
               <li>• Morning: 1.0x (standard fatigue)</li>
               <li>• Evening: 1.0x (standard fatigue)</li>
-              <li>• Night: 1.5x (heavy fatigue accumulation)</li>
+              <li>• Night: 1.5x (heavy accumulation)</li>
               <li>• Emergency Deployment: 2.0x</li>
             </ul>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="border-t pt-6">
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
-          onClick={handleSave}
-          disabled={validationErrors.length > 0 || saving}
-        >
-          {saving ? (
-            <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-          ) : (
-            <><Save className="mr-2 h-4 w-4" />Save Configuration</>
-          )}
-        </Button>
+        </div>
       </div>
 
-      <Card className="bg-blue-50 border-l-4 border-l-blue-600">
-        <CardHeader className="border-b border-blue-200">
-          <CardTitle className="text-blue-900 text-base">System Status</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4 space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-700">Config Version:</span>
-            <span className="font-semibold">{configVersion}</span>
+      <div className="flex gap-3 pt-2">
+        <button
+          onClick={handleSave}
+          disabled={validationErrors.length > 0 || saving}
+          className={`
+            flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-semibold text-sm
+            transition-all duration-150
+            ${
+              validationErrors.length > 0 || saving
+                ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+                : "bg-primary text-primary-foreground hover:opacity-90"
+            }
+          `}
+        >
+          {saving ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              Save Configuration
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="sentinel-card border-t-2 border-t-primary p-4 overflow-hidden">
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-display font-semibold text-sm text-foreground">System Status</span>
+          <span className="tag-success">Production</span>
+        </div>
+        <div className="divide-y divide-border">
+          <div className="flex items-center justify-between py-2">
+            <span className="mono-data text-[10px]">Config Version</span>
+            <span className="font-mono font-bold text-sm text-foreground">v{configVersion}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-700">Last Updated:</span>
-            <span className="font-semibold">{lastUpdated || 'Never'}</span>
+          <div className="flex items-center justify-between py-2">
+            <span className="mono-data text-[10px]">Last Updated</span>
+            <span className="font-mono text-xs text-foreground">{lastUpdated || "Never"}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-700">Environment:</span>
-            <Badge className="bg-green-100 text-green-800">Production</Badge>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
     </div>
   )
 }
