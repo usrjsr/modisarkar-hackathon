@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Plus, Trash2, AlertCircle, X, Users, Shield, Clock, Activity, ChevronLeft, ChevronRight, Upload, FileSpreadsheet, CheckCircle2, CalendarOff, CalendarPlus } from "lucide-react"
+import { Search, Plus, Trash2, AlertCircle, X, Users, Shield, Clock, Activity, ChevronLeft, ChevronRight, Upload, FileSpreadsheet, CheckCircle2, CalendarOff, CalendarPlus, Eye } from "lucide-react"
 import { RANKS } from "@/lib/constants/ranks"
 
 interface Officer {
@@ -23,10 +23,10 @@ const STATUS_TABS = ["All", "Deployed", "Standby", "OnLeave"] as const
 type StatusTab = typeof STATUS_TABS[number]
 
 function getFatigueLevel(score: number): { label: string; accent: string } {
-  if (score >= 30) return { label: "CRITICAL", accent: "danger" }
-  if (score >= 20) return { label: "HIGH", accent: "warning" }
-  if (score >= 10) return { label: "MED", accent: "accent" }
-  return { label: "LOW", accent: "success" }
+  if (score >= 30) return { label: "EXHAUSTED", accent: "danger" }
+  if (score >= 20) return { label: "TIRED", accent: "warning" }
+  if (score >= 10) return { label: "MODERATE", accent: "accent" }
+  return { label: "FRESH", accent: "success" }
 }
 
 function getStatusAccent(status: string): string {
@@ -612,6 +612,13 @@ export default function PersonnelPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150">
+                        <button
+                          onClick={() => window.location.href = `/dashboard/personnel/${p._id}`}
+                          title="View Officer Profile"
+                          className="flex items-center justify-center w-7 h-7 rounded-sm border border-border text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary-muted transition-all duration-150"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
                         {p.status === 'OnLeave' ? (
                           <button
                             onClick={() => cancelLeave(p._id)}

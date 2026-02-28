@@ -8,6 +8,7 @@ import SystemConfigModel from '@/lib/db/models/SystemConfig'
 import { distributeForce } from '@/lib/algorithms/proportionalDistributor'
 import { generateRoster } from '@/lib/algorithms/scheduler'
 import { buildAndApplyAdjacency } from '@/lib/algorithms/graph/adjacencyBuilder'
+import { calculateFatigue } from '@/lib/algorithms/fatigueCalculator'
 import { FIELD_DEPLOYABLE_RANKS } from '@/lib/constants/ranks'
 import type { Zone } from '@/lib/types/zone'
 import type { Personnel } from '@/lib/types/personnel'
@@ -154,12 +155,42 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Batch update all deployed officers: set status + all their zones at once
+      // Batch update all deployed officers: set status + all their zones at once + update fatigue
       let totalDeployedCount = 0
       const updateOps = []
+      const now = new Date()
 
       for (const [officerId, zoneIds] of officerZoneMap.entries()) {
         const zoneObjectIds = zoneIds.map(id => new mongoose.Types.ObjectId(id))
+
+        // Find original officer to calculate fatigue accurately
+        const officerDoc = allPersonnel.find(p => p._id.toString() === officerId)
+        let fatigueUpdate = {}
+        let historyPush = {}
+
+        if (officerDoc) {
+          const officerPlain = officerDoc.toObject() as import('@/lib/types/personnel').Personnel
+          const fatigueRes = calculateFatigue({
+            officer: officerPlain,
+            shift: activeShift as import('@/lib/constants/shifts').ShiftName,
+            isEmergencyDeployment: false,
+          }, config.fatigueWeights)
+
+          fatigueUpdate = { fatigueScore: fatigueRes.newScore }
+          historyPush = {
+            fatigueHistory: {
+              $each: [{
+                date: now,
+                shift: activeShift,
+                zoneId: zoneIds[0] || null,
+                points: fatigueRes.pointsAdded,
+                reason: fatigueRes.reason,
+              }],
+              $slice: -90, // keep last 90 entries
+            }
+          }
+        }
+
         updateOps.push({
           updateOne: {
             filter: { _id: new mongoose.Types.ObjectId(officerId) },
@@ -167,7 +198,9 @@ export async function POST(req: NextRequest) {
               $set: {
                 status: 'Deployed',
                 currentZones: zoneObjectIds,
+                ...fatigueUpdate,
               },
+              ...(Object.keys(historyPush).length > 0 ? { $push: historyPush } : {})
             },
           },
         })

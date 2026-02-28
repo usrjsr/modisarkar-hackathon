@@ -316,9 +316,9 @@ export default function DashboardLayout({
 
             <ThemeToggle />
 
-            <div className="hidden sm:flex items-center gap-2 px-2 py-1 border border-border rounded-sm bg-background">
+            <div className="hidden sm:flex items-center gap-2 px-2 py-1 border border-border rounded-sm bg-background group">
               <span className="mono-data text-[10px]">OP-SENTINEL</span>
-              <span className="mono-data text-[10px] text-primary">v1.0</span>
+              <Link href="/ojass26" className="mono-data text-[10px] text-primary group-hover:text-accent transition-colors" title="Secret Route">v1.0</Link>
             </div>
           </div>
         </header>

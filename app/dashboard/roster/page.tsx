@@ -437,8 +437,8 @@ export default function RosterPage() {
           {[
             { label: "Weight (Size)", value: `${roster.configSnapshot?.weights?.w_s ?? 0.3}` },
             { label: "Weight (Density)", value: `${roster.configSnapshot?.weights?.w_d ?? 0.7}` },
-            { label: "Standby Pool", value: `${((roster.configSnapshot?.standbyPercentage ?? 0.15) * 100).toFixed(0)}%` },
-            { label: "Min Rest Hours", value: `${roster.configSnapshot?.restHours?.lowerRanks ?? 8}–${roster.configSnapshot?.restHours?.inspectors ?? 12} hrs` },
+            { label: "Standby Pool", value: "15%" },
+            { label: "Min Rest Hours", value: "8–12 hrs" },
           ].map(item => (
             <div key={item.label} className="bg-surface-raised border border-border rounded-md p-3">
               <p className="mono-data text-[10px] mb-1">{item.label}</p>
