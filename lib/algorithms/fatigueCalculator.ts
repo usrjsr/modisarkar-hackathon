@@ -11,32 +11,49 @@ import type { HeatmapColor } from '../constants/thresholds';
 
 // ─── Single officer fatigue update ──────────────────────────────────────────
 
-export function calculateFatigue(input: FatigueInput): FatigueResult {
+// Dynamic fatigue weights type — matches SystemConfig.fatigueWeights
+export interface DynamicFatigueWeights {
+  standardShift: number;
+  nightShift: number;
+  emergencyDeployment: number;
+}
+
+// Dynamic rest hours type — matches SystemConfig.restHours
+export interface DynamicRestHours {
+  lowerRanks: number;
+  inspectors: number;
+}
+
+export function calculateFatigue(
+  input: FatigueInput,
+  dynamicWeights?: DynamicFatigueWeights,
+): FatigueResult {
   const { officer, shift, isEmergencyDeployment } = input;
+  const fw = dynamicWeights ?? FATIGUE_WEIGHTS;
 
   let points: number;
   let reason: FatigueHistoryEntry['reason'];
 
   if (isEmergencyDeployment) {
-    points = FATIGUE_WEIGHTS.emergencyDeployment;
+    points = fw.emergencyDeployment;
     reason = 'emergencyDeployment';
   } else if (shift === 'night') {
-    points = FATIGUE_WEIGHTS.nightShift * SHIFT_FATIGUE_MULTIPLIER.night;
+    points = fw.nightShift * SHIFT_FATIGUE_MULTIPLIER.night;
     reason = 'nightShift';
   } else {
-    points = FATIGUE_WEIGHTS.standardShift * SHIFT_FATIGUE_MULTIPLIER[shift];
+    points = fw.standardShift * SHIFT_FATIGUE_MULTIPLIER[shift];
     reason = 'standardShift';
   }
 
   const newScore = officer.fatigueScore + points;
 
   return {
-    officerId:     officer._id,
+    officerId: officer._id,
     previousScore: officer.fatigueScore,
-    pointsAdded:   points,
-    newScore:      parseFloat(newScore.toFixed(2)),
+    pointsAdded: points,
+    newScore: parseFloat(newScore.toFixed(2)),
     reason,
-    isFatigued:    newScore >= FATIGUE_HEAVY_ZONE_LIMIT,
+    isFatigued: newScore >= FATIGUE_HEAVY_ZONE_LIMIT,
   };
 }
 
@@ -47,9 +64,9 @@ export function getFatigueBand(score: number): {
   label: string;
 } {
   if (score >= FATIGUE_THRESHOLDS.critical.min) return { band: 'critical', label: FATIGUE_THRESHOLDS.critical.label };
-  if (score >= FATIGUE_THRESHOLDS.high.min)     return { band: 'high',     label: FATIGUE_THRESHOLDS.high.label };
+  if (score >= FATIGUE_THRESHOLDS.high.min) return { band: 'high', label: FATIGUE_THRESHOLDS.high.label };
   if (score >= FATIGUE_THRESHOLDS.moderate.min) return { band: 'moderate', label: FATIGUE_THRESHOLDS.moderate.label };
-  return                                                { band: 'low',      label: FATIGUE_THRESHOLDS.low.label };
+  return { band: 'low', label: FATIGUE_THRESHOLDS.low.label };
 }
 
 // ─── Can this officer be assigned to a zone of given threat level? ────────────
@@ -67,12 +84,18 @@ export function isEligibleForZone(officer: Personnel, zoneColor: HeatmapColor): 
 
 // ─── Check rest period compliance ────────────────────────────────────────────
 
-export function hasCompletedRest(officer: Personnel, nextShiftStart: Date): boolean {
+export function hasCompletedRest(
+  officer: Personnel,
+  nextShiftStart: Date,
+  dynamicRestHours?: DynamicRestHours,
+): boolean {
   if (!officer.lastShiftEnd) return true; // No prior shift — always available
 
   const level = RANK_TO_LEVEL[officer.rank];
+  const inspectorHours = dynamicRestHours?.inspectors ?? 12;
+  const lowerHours = dynamicRestHours?.lowerRanks ?? 8;
   const requiredRestMs =
-    (level === 'ZoneManager' ? 12 : 8) * 60 * 60 * 1000; // 12hr inspectors, 8hr others
+    (level === 'ZoneManager' ? inspectorHours : lowerHours) * 60 * 60 * 1000;
 
   return nextShiftStart.getTime() - officer.lastShiftEnd.getTime() >= requiredRestMs;
 }
@@ -90,20 +113,24 @@ export interface BulkFatigueUpdate {
 export function bulkUpdateFatigue(
   officers: Personnel[],
   shift: ShiftName,
-  emergencyIds: Set<string> = new Set()
+  emergencyIds: Set<string> = new Set(),
+  dynamicWeights?: DynamicFatigueWeights,
 ): BulkFatigueUpdate[] {
   return officers.map(officer => {
-    const result = calculateFatigue({
-      officer,
-      shift,
-      isEmergencyDeployment: emergencyIds.has(officer._id),
-    });
+    const result = calculateFatigue(
+      {
+        officer,
+        shift,
+        isEmergencyDeployment: emergencyIds.has(officer._id),
+      },
+      dynamicWeights,
+    );
     return {
-      officerId:     result.officerId,
+      officerId: result.officerId,
       previousScore: result.previousScore,
-      newScore:      result.newScore,
-      pointsAdded:   result.pointsAdded,
-      isFatigued:    result.isFatigued,
+      newScore: result.newScore,
+      pointsAdded: result.pointsAdded,
+      isFatigued: result.isFatigued,
     };
   });
 }
@@ -124,10 +151,11 @@ export function decayFatigue(officer: Personnel, daysRested: number): number {
 export function sortByEligibility(
   officers: Personnel[],
   zoneColor: HeatmapColor,
-  nextShiftStart: Date
+  nextShiftStart: Date,
+  dynamicRestHours?: DynamicRestHours,
 ): Personnel[] {
-  const eligible   = officers.filter(o => isEligibleForZone(o, zoneColor) && hasCompletedRest(o, nextShiftStart));
-  const ineligible = officers.filter(o => !isEligibleForZone(o, zoneColor) || !hasCompletedRest(o, nextShiftStart));
+  const eligible = officers.filter(o => isEligibleForZone(o, zoneColor) && hasCompletedRest(o, nextShiftStart, dynamicRestHours));
+  const ineligible = officers.filter(o => !isEligibleForZone(o, zoneColor) || !hasCompletedRest(o, nextShiftStart, dynamicRestHours));
 
   eligible.sort((a, b) => a.fatigueScore - b.fatigueScore);
 
@@ -152,14 +180,14 @@ export function buildDailyFatigueSummary(
   const summary: Record<string, DailyFatigueSummary> = {};
 
   for (const officer of officers) {
-    const wasDeployed   = deployedIds.has(officer._id);
+    const wasDeployed = deployedIds.has(officer._id);
     const wasNightShift = nightShiftIds.has(officer._id);
-    const { band }      = getFatigueBand(officer.fatigueScore);
+    const { band } = getFatigueBand(officer.fatigueScore);
 
     summary[officer._id] = {
-      officerId:        officer._id,
-      score:            officer.fatigueScore,
-      shiftsWorked:     wasDeployed ? 1 : 0,
+      officerId: officer._id,
+      score: officer.fatigueScore,
+      shiftsWorked: wasDeployed ? 1 : 0,
       nightShiftsWorked: wasNightShift ? 1 : 0,
       band,
     };

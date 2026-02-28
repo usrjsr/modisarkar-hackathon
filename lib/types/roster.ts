@@ -49,6 +49,11 @@ export interface RosterConfigSnapshot {
     w_d: number;
   };
   totalZones: number;
+  standbyPercentage?: number;
+  restHours?: {
+    lowerRanks: number;
+    inspectors: number;
+  };
 }
 
 export interface RosterViolation {

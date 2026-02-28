@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         const { zoneId } = await params
 
         const personnel = await PersonnelModel.find({
-            currentZone: zoneId,
+            currentZones: zoneId,
         })
             .select('name badgeNumber rank status fatigueScore')
             .sort({ rank: 1, name: 1 })

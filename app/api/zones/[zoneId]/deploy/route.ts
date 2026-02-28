@@ -7,7 +7,7 @@ import SystemConfigModel from '@/lib/db/models/SystemConfig'
 import { distributeForce } from '@/lib/algorithms/proportionalDistributor'
 import { sortByEligibility } from '@/lib/algorithms/fatigueCalculator'
 import { buildAndApplyAdjacency } from '@/lib/algorithms/graph/adjacencyBuilder'
-import { FIELD_DEPLOYABLE_RANKS, MIN_ZONE_COMPOSITION } from '@/lib/constants/ranks'
+import { FIELD_DEPLOYABLE_RANKS, MIN_ZONE_COMPOSITION, STRATEGIC_LEVEL, ZONE_MANAGER_LEVEL } from '@/lib/constants/ranks'
 import type { Zone } from '@/lib/types/zone'
 import type { Personnel } from '@/lib/types/personnel'
 
@@ -170,15 +170,68 @@ export async function POST(req: NextRequest, { params }: Params) {
       modifiedBy: lockedBy ?? null,
     })
 
-    await PersonnelModel.updateMany(
-      { _id: { $in: Array.from(assignedIds) } },
-      {
-        status: 'Deployed',
-        currentZone: zoneId,
-        lastShiftEnd: new Date(shiftStart.getTime() + 8 * 60 * 60 * 1000),
-        $inc: { totalDeployments: 1 },
+    // Assign zones based on rank hierarchy
+    const allZoneIds = (await ZoneModel.find({ isActive: true }).select('_id').lean()).map((z: { _id: { toString: () => string } }) => z._id.toString())
+    const targetZone = await ZoneModel.findById(zoneId).lean() as Zone | null
+    const adjacentZoneIds = targetZone?.adjacency ?? []
+
+    // Group deployed officers by their command level
+    const strategicIds: string[] = []
+    const zoneManagerIds: string[] = []
+    const sectorDutyIds: string[] = []
+
+    for (const d of deployed) {
+      const rank = d.rank as string
+      if ((STRATEGIC_LEVEL as readonly string[]).includes(rank)) {
+        strategicIds.push(d.officerId as string)
+      } else if ((ZONE_MANAGER_LEVEL as readonly string[]).includes(rank)) {
+        zoneManagerIds.push(d.officerId as string)
+      } else {
+        sectorDutyIds.push(d.officerId as string)
       }
-    )
+    }
+
+    const shiftEndTime = new Date(shiftStart.getTime() + 8 * 60 * 60 * 1000)
+
+    // DIG/SP → all zones
+    if (strategicIds.length > 0) {
+      await PersonnelModel.updateMany(
+        { _id: { $in: strategicIds } },
+        {
+          status: 'Deployed',
+          $addToSet: { currentZones: { $each: allZoneIds } },
+          lastShiftEnd: shiftEndTime,
+          $inc: { totalDeployments: 1 },
+        }
+      )
+    }
+
+    // DSP/ASP/Inspector → target zone + up to 2 adjacent zones (max 3)
+    if (zoneManagerIds.length > 0) {
+      const clusterIds = [zoneId, ...adjacentZoneIds.slice(0, 2)]
+      await PersonnelModel.updateMany(
+        { _id: { $in: zoneManagerIds } },
+        {
+          status: 'Deployed',
+          $addToSet: { currentZones: { $each: clusterIds } },
+          lastShiftEnd: shiftEndTime,
+          $inc: { totalDeployments: 1 },
+        }
+      )
+    }
+
+    // SI/ASI/HeadConstable/Constable → single zone
+    if (sectorDutyIds.length > 0) {
+      await PersonnelModel.updateMany(
+        { _id: { $in: sectorDutyIds } },
+        {
+          status: 'Deployed',
+          $addToSet: { currentZones: zoneId },
+          lastShiftEnd: shiftEndTime,
+          $inc: { totalDeployments: 1 },
+        }
+      )
+    }
 
     await ZoneModel.findByIdAndUpdate(zoneId, {
       currentDeployment: totalStrength,

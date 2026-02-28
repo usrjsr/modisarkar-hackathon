@@ -6,7 +6,7 @@ import AlertBanner from "@/components/dashboard/AlertBanner"
 import ZoneCard from "@/components/dashboard/ZoneCard"
 import ZoneHeatmap from "@/components/dashboard/ZoneHeatmap"
 import ZoneConfigForm from "@/components/forms/ZoneConfigForm"
-import { Plus, X, Map, BarChart3, LayoutGrid, MapPin, Users, Gauge, Shield, Eye, Edit, Trash2 } from "lucide-react"
+import { Plus, X, Map, BarChart3, LayoutGrid, MapPin, Users, Gauge, Shield, Eye, Edit, Trash2, CheckCircle, RefreshCw } from "lucide-react"
 import { Zone } from "@/lib/types/dashboard"
 import dynamic from "next/dynamic"
 
@@ -43,6 +43,8 @@ export default function ZonesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [activeTab, setActiveTab] = useState<TabValue>("overview")
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [redistributing, setRedistributing] = useState(false)
 
   interface ZoneRaw {
     _id: string; name: string; code: string
@@ -128,6 +130,9 @@ export default function ZonesPage() {
         })
         const result = await res.json()
         if (result.success && result.data) {
+          handleCloseForm()
+          setToast({ message: `Zone "${data.name}" updated successfully. Force redistributed.`, type: 'success' })
+          setTimeout(() => setToast(null), 4000)
           await fetchAndSetZones()
         } else {
           alert(result.error || "Failed to update zone")
@@ -150,6 +155,9 @@ export default function ZonesPage() {
         })
         const result = await res.json()
         if (result.success && result.data) {
+          handleCloseForm()
+          setToast({ message: `Zone "${data.name}" created successfully!`, type: 'success' })
+          setTimeout(() => setToast(null), 5000)
           await fetchAndSetZones()
         } else {
           alert(result.error || "Failed to create zone")
@@ -160,7 +168,29 @@ export default function ZonesPage() {
         return
       }
     }
-    handleCloseForm()
+  }
+
+  const handleRedistribute = async () => {
+    setRedistributing(true)
+    try {
+      const res = await fetch("/api/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate: new Date().toISOString() }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setToast({ message: 'Forces redistributed & roster regenerated successfully!', type: 'success' })
+        setTimeout(() => setToast(null), 4000)
+        await fetchAndSetZones()
+      } else {
+        alert(result.error || 'Failed to redistribute forces')
+      }
+    } catch {
+      alert('Error redistributing forces')
+    } finally {
+      setRedistributing(false)
+    }
   }
 
   const handleDeleteZone = async (zoneId: string) => {
@@ -198,13 +228,23 @@ export default function ZonesPage() {
           <p className="mono-data mt-1">Operational Zone Setup · Personnel Distribution Strategy</p>
         </div>
         {!isFormOpen && (
-          <button
-            onClick={handleAddZone}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity font-semibold text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Create New Zone
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRedistribute}
+              disabled={redistributing || zones.length === 0}
+              className="flex items-center gap-2 px-4 py-2 border border-success bg-success-muted text-success rounded-md hover:bg-success hover:text-success-foreground transition-colors font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-4 h-4 ${redistributing ? 'animate-spin' : ''}`} />
+              {redistributing ? 'Redistributing...' : 'Redistribute Forces'}
+            </button>
+            <button
+              onClick={handleAddZone}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity font-semibold text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Create New Zone
+            </button>
+          </div>
         )}
       </div>
 
@@ -383,6 +423,23 @@ export default function ZonesPage() {
           </div>
         )}
       </div>
+
+      {/* Success / Error Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-lg shadow-2xl border animate-slide-in-up ${toast.type === 'success'
+          ? 'bg-success-muted border-success text-success'
+          : 'bg-danger-muted border-danger text-danger'
+          }`}>
+          <CheckCircle className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-semibold">{toast.message}</p>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 w-6 h-6 flex items-center justify-center rounded-sm hover:bg-surface-overlay transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

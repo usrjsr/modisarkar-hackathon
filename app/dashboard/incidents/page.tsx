@@ -27,6 +27,14 @@ interface IncidentResult {
   currentStrength: number
   heatmapColor: string
   message: string
+  resolution: {
+    status: string
+    troopsResolved: number
+    remainingDeficit: number
+    steps: Array<{ step: string; action: string; troopsMoved: number; sourceZones: string[] }>
+    warningMessage: string | null
+    movedPersonnelCount: number
+  } | null
 }
 
 interface ZoneState {
@@ -106,6 +114,7 @@ export default function IncidentsPage() {
   const triggerIncident = async (zoneId: string) => {
     const zone = zones.find(z => z._id === zoneId)
     if (!zone) return
+    setResolving(true)
     const newD = Math.min(10, zone.currentD + 2)
     try {
       const res = await fetch(`/api/zones/${zoneId}/incident`, {
@@ -121,26 +130,26 @@ export default function IncidentsPage() {
       if (result.success && result.data) {
         const data = result.data as IncidentResult
         setLastResult(data)
-        setZones(zones.map(z => z._id === zoneId
-          ? { ...z, newD: data.newDensity, isDensitySpike: true, deficit: Math.max(0, data.deltaT), status: "Incident" }
+        setZones(prev => prev.map(z => z._id === zoneId
+          ? {
+            ...z,
+            newD: data.newDensity,
+            currentD: data.newDensity,
+            isDensitySpike: true,
+            deficit: Math.max(0, data.deltaT),
+            status: data.resolution ? (data.resolution.remainingDeficit === 0 ? "Resolved" : "Partial") : (data.deltaT > 0 ? "Incident" : "Normal"),
+          }
           : z
         ))
         setSelectedZone(zoneId)
-        setShowResolution(false)
+        setShowResolution(data.resolution !== null)
+        // Auto-refresh zones to reflect updated deployment counts
+        setTimeout(() => fetchZones(), 500)
       } else {
         alert(result.error || "Failed to trigger incident")
       }
     } catch { alert("Error triggering incident") }
-  }
-
-  const resolveIncident = () => {
-    setResolving(true)
-    setZones(zones.map(z => z.isDensitySpike
-      ? { ...z, currentD: z.newD, isDensitySpike: false, deficit: 0, status: "Resolved" }
-      : z
-    ))
-    setShowResolution(true)
-    setResolving(false)
+    finally { setResolving(false) }
   }
 
   const resetIncidents = async () => {
@@ -189,26 +198,68 @@ export default function IncidentsPage() {
         />
       )}
 
-      {showResolution && (
-        <div className="sentinel-card border-l-4 border-l-success p-4">
-          <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-success shrink-0 mt-0.5" />
-            <div>
-              <p className="font-display font-semibold text-success">INCIDENT RESOLVED</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Personnel successfully redeployed. Density score normalised. System returned to standard operations.
-              </p>
+      {lastResult && showResolution && lastResult.resolution && (
+        <div className="sentinel-card border-l-4 border-l-success overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-surface-raised flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-success" />
+            <span className="font-display font-semibold text-sm text-foreground">Auto-Resolution Complete</span>
+            <span className={`tag-${lastResult.resolution.remainingDeficit === 0 ? 'success' : 'warning'} ml-auto`}>
+              {lastResult.resolution.status.toUpperCase()}
+            </span>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Original D", value: lastResult.originalDensity, accent: "text-foreground" },
+              { label: "New D Score", value: lastResult.newDensity, accent: "text-danger" },
+              { label: "Troops Resolved", value: lastResult.resolution.troopsResolved, accent: "text-success" },
+              { label: "Remaining Deficit", value: lastResult.resolution.remainingDeficit, accent: lastResult.resolution.remainingDeficit > 0 ? "text-danger" : "text-success" },
+            ].map(item => (
+              <div key={item.label} className="bg-surface-raised border border-border rounded-md p-3">
+                <p className="mono-data text-[10px] mb-1">{item.label}</p>
+                <p className={`font-mono font-bold text-xl ${item.accent}`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+          {lastResult.resolution.steps.length > 0 && (
+            <div className="px-4 pb-4 space-y-2">
+              <p className="mono-data text-[10px] mb-2">RESOLUTION STEPS</p>
+              {lastResult.resolution.steps.map((step, idx) => (
+                <div key={idx} className={`flex items-start gap-3 px-3 py-2.5 rounded-md border ${step.step === 'A' ? 'bg-success-muted border-success' :
+                    step.step === 'B' ? 'bg-warning-muted border-warning' :
+                      'bg-danger-muted border-danger'
+                  }`}>
+                  <span className={`font-mono text-xs font-bold px-1.5 py-0.5 rounded-sm border ${step.step === 'A' ? 'border-success text-success' :
+                      step.step === 'B' ? 'border-warning text-warning' :
+                        'border-danger text-danger'
+                    }`}>{step.step}</span>
+                  <div>
+                    <p className="text-sm text-foreground">{step.action}</p>
+                    <p className="mono-data text-[10px] mt-0.5">{step.troopsMoved} officers moved</p>
+                  </div>
+                </div>
+              ))}
             </div>
+          )}
+          {lastResult.resolution.warningMessage && (
+            <div className="px-4 pb-4">
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-warning-muted border border-warning">
+                <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                <p className="mono-data text-[11px] text-warning">{lastResult.resolution.warningMessage}</p>
+              </div>
+            </div>
+          )}
+          <div className="px-4 pb-4">
+            <p className="mono-data text-[11px] text-success">{lastResult.message}</p>
           </div>
         </div>
       )}
 
-      {lastResult && lastResult.deltaT > 0 && !showResolution && (
+      {lastResult && !showResolution && lastResult.deltaT > 0 && (
         <div className="sentinel-card border-l-4 border-l-warning overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-surface-raised flex items-center gap-2">
             <Activity className="w-4 h-4 text-warning" />
             <span className="font-display font-semibold text-sm text-foreground">Deficit Analysis</span>
-            <span className="tag-warning ml-auto">ACTIVE</span>
+            <span className="tag-warning ml-auto">PROCESSING</span>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -223,11 +274,18 @@ export default function IncidentsPage() {
               </div>
             ))}
           </div>
-          {lastResult.message && (
-            <div className="px-4 pb-4">
-              <p className="mono-data text-[11px] text-warning">{lastResult.message}</p>
+        </div>
+      )}
+
+      {lastResult && lastResult.deltaT <= 0 && (
+        <div className="sentinel-card border-l-4 border-l-success p-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-success shrink-0 mt-0.5" />
+            <div>
+              <p className="font-display font-semibold text-success">NO DEFICIT</p>
+              <p className="text-sm text-muted-foreground mt-1">{lastResult.message}</p>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -265,10 +323,10 @@ export default function IncidentsPage() {
                       ${isSpike
                         ? "bg-danger-muted border-danger text-danger cursor-not-allowed"
                         : isResolved
-                        ? "bg-success-muted border-success text-success cursor-not-allowed"
-                        : isSelected
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "bg-surface border-border text-foreground hover:border-border-strong hover:bg-surface-raised"
+                          ? "bg-success-muted border-success text-success cursor-not-allowed"
+                          : isSelected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "bg-surface border-border text-foreground hover:border-border-strong hover:bg-surface-raised"
                       }
                     `}
                   >
@@ -297,7 +355,7 @@ export default function IncidentsPage() {
                   ${s.accent === "primary" ? "bg-primary-muted border-primary text-primary" : ""}
                   ${s.accent === "success" ? "bg-success-muted border-success text-success" : ""}
                   ${s.accent === "warning" ? "bg-warning-muted border-warning text-warning" : ""}
-                  ${s.accent === "danger"  ? "bg-danger-muted  border-danger  text-danger"  : ""}
+                  ${s.accent === "danger" ? "bg-danger-muted  border-danger  text-danger" : ""}
                 `}>
                   {s.step}
                 </div>
@@ -348,7 +406,7 @@ export default function IncidentsPage() {
                   </div>
                   <span className={`
                     font-mono text-[10px] font-bold px-2 py-1 rounded-sm border
-                    ${isSpike    ? "bg-danger-muted  border-danger  text-danger"  : ""}
+                    ${isSpike ? "bg-danger-muted  border-danger  text-danger" : ""}
                     ${isResolved ? "bg-success-muted border-success text-success" : ""}
                     ${!isSpike && !isResolved ? "bg-muted border-border text-muted-foreground" : ""}
                   `}>
@@ -415,12 +473,12 @@ export default function IncidentsPage() {
         {incidentZones > 0 && (
           <div className="p-4 border-t border-border">
             <button
-              onClick={resolveIncident}
+              onClick={resetIncidents}
               disabled={resolving}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-success text-success-foreground rounded-md font-semibold hover:opacity-90 transition-opacity duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-md font-semibold hover:opacity-90 transition-opacity duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CheckCircle className="w-4 h-4" />
-              Execute Auto-Resolution
+              <RefreshCw className={`w-4 h-4 ${resolving ? 'animate-spin' : ''}`} />
+              Refresh Zone Data
             </button>
           </div>
         )}
@@ -469,7 +527,7 @@ function PageHeader() {
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
   const map: Record<string, { border: string; value: string }> = {
-    danger:  { border: "border-t-danger",  value: "text-danger"  },
+    danger: { border: "border-t-danger", value: "text-danger" },
     warning: { border: "border-t-warning", value: "text-warning" },
     primary: { border: "border-t-primary", value: "text-primary" },
     success: { border: "border-t-success", value: "text-success" },

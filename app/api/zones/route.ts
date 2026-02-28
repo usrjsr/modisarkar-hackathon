@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import connectDB from '@/lib/db/mongodb'
 import ZoneModel from '@/lib/db/models/Zone'
-import { buildAndApplyAdjacency } from '@/lib/algorithms/graph/adjacencyBuilder'
-import { distributeForce } from '@/lib/algorithms/proportionalDistributor'
-import SystemConfigModel from '@/lib/db/models/SystemConfig'
-import type { Zone } from '@/lib/types/zone'
 
 export async function GET() {
   try {
@@ -20,7 +16,12 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB()
 
-    const body = await req.json()
+    let body
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid or empty request body' }, { status: 400 })
+    }
     const { name, code, sizeScore, densityScore, geometry, centroid } = body
 
     if (!name || !code || !sizeScore || !densityScore) {
@@ -32,13 +33,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Zone code already exists' }, { status: 409 })
     }
 
+    // Calculate initial zScore
+    const w_s = 0.3, w_d = 0.7
+    const zScore = (w_s * sizeScore + w_d * densityScore) / (w_s + w_d)
+    const normalised = ((zScore - 1) / 9) * 10
+    const heatmapColor = normalised >= 7.5 ? 'red' : normalised >= 5.0 ? 'orange' : normalised >= 2.5 ? 'yellow' : 'green'
+
     const zone = await ZoneModel.create({
       name,
       code,
       sizeScore,
       densityScore,
       baseDensity: densityScore,
-      zScore: 0,
+      zScore,
       currentDeployment: 0,
       safeThreshold: 0,
       geometry,
@@ -48,43 +55,12 @@ export async function POST(req: NextRequest) {
       },
       adjacency: [],
       distanceMatrix: [],
-      heatmapColor: 'green',
+      heatmapColor,
       isActive: true,
       version: 0,
     })
 
-    const config = await SystemConfigModel.findOne().sort({ createdAt: -1 })
-    if (config) {
-      const allZones = await ZoneModel.find({ isActive: true })
-      const zonesPlain = allZones.map(z => z.toObject()) as Zone[]
-
-      const { zones: hydrated } = buildAndApplyAdjacency(zonesPlain, 'macro')
-
-      const distribution = distributeForce({
-        totalForce: config.totalForce,
-        zones: hydrated,
-        weights: config.weights,
-      })
-
-      for (const alloc of distribution.allocations) {
-        await ZoneModel.findByIdAndUpdate(alloc.zoneId, {
-          zScore: alloc.zScore,
-          allocation: alloc.allocation,
-          safeThreshold: alloc.safeThreshold,
-          heatmapColor: alloc.heatmapColor,
-        })
-      }
-
-      for (const hz of hydrated) {
-        await ZoneModel.findByIdAndUpdate(hz._id, {
-          adjacency: hz.adjacency,
-          distanceMatrix: hz.distanceMatrix,
-        })
-      }
-    }
-
-    const updated = await ZoneModel.findById(zone._id)
-    return NextResponse.json({ success: true, data: updated }, { status: 201 })
+    return NextResponse.json({ success: true, data: zone }, { status: 201 })
   } catch (error) {
     console.error('Zone creation error:', error)
     const message = error instanceof Error ? error.message : 'Failed to create zone'

@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
                 status: mapped.status || 'Active',
                 email: mapped.email || null,
                 homeZone: null,
-                currentZone: null,
+                currentZones: [],
                 fatigueScore: 0,
                 fatigueHistory: [],
                 leavePeriods: [],

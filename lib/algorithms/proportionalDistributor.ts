@@ -7,10 +7,11 @@ export interface DistributionInput {
   totalForce: number;
   zones: Zone[];
   weights?: { w_s: number; w_d: number };
+  standbyPercentage?: number; // Dynamic from SystemConfig, defaults to STANDBY_POOL_PERCENTAGE
 }
 
 export interface DistributionResult {
-  standbyPool: number;        // Headcount reserved (15%)
+  standbyPool: number;        // Headcount reserved
   activeForce: number;        // Headcount for field deployment
   allocations: ZoneAllocation[];
   totalZScore: number;
@@ -26,7 +27,7 @@ function calculateZScore(S: number, D: number, w_s: number, w_d: number): number
 function resolveHeatmapColor(zScore: number): HeatmapColor {
   // zScore is 1–10, map to heatmap bands
   const normalised = ((zScore - 1) / 9) * 10; // scale to 0–10
-  if (normalised >= HEATMAP_THRESHOLDS.red.min)    return 'red';
+  if (normalised >= HEATMAP_THRESHOLDS.red.min) return 'red';
   if (normalised >= HEATMAP_THRESHOLDS.orange.min) return 'orange';
   if (normalised >= HEATMAP_THRESHOLDS.yellow.min) return 'yellow';
   return 'green';
@@ -44,6 +45,7 @@ export function distributeForce(input: DistributionInput): DistributionResult {
   const { totalForce, zones } = input;
   const w_s = input.weights?.w_s ?? DEFAULT_WEIGHTS.w_s;
   const w_d = input.weights?.w_d ?? DEFAULT_WEIGHTS.w_d;
+  const standbyFraction = input.standbyPercentage ?? STANDBY_POOL_PERCENTAGE;
   const violations: string[] = [];
 
   if (zones.length === 0) {
@@ -54,7 +56,7 @@ export function distributeForce(input: DistributionInput): DistributionResult {
   }
 
   // ── Step 1: Reserve standby pool ──────────────────────────────────────────
-  const standbyPool = Math.floor(totalForce * STANDBY_POOL_PERCENTAGE);
+  const standbyPool = Math.floor(totalForce * standbyFraction);
   const activeForce = totalForce - standbyPool;
 
   // ── Step 2: Calculate Z-score for every zone ──────────────────────────────
@@ -94,7 +96,7 @@ export function distributeForce(input: DistributionInput): DistributionResult {
   // ── Step 6: Build final allocations + validate ───────────────────────────
   const allocations: ZoneAllocation[] = floored.map(({ zone, zScore, allocation }) => {
     const safeThreshold = Math.ceil(allocation * SAFE_THRESHOLD_FRACTION);
-    const heatmapColor  = resolveHeatmapColor(zScore);
+    const heatmapColor = resolveHeatmapColor(zScore);
 
     if (!meetsMinimumComposition(allocation)) {
       violations.push(
@@ -103,8 +105,8 @@ export function distributeForce(input: DistributionInput): DistributionResult {
     }
 
     return {
-      zoneId:        zone._id,
-      zScore:        parseFloat(zScore.toFixed(4)),
+      zoneId: zone._id,
+      zScore: parseFloat(zScore.toFixed(4)),
       allocation,
       safeThreshold,
       heatmapColor,
@@ -158,13 +160,13 @@ export function calculateDeficit(
   const w_s = weights?.w_s ?? DEFAULT_WEIGHTS.w_s;
   const w_d = weights?.w_d ?? DEFAULT_WEIGHTS.w_d;
 
-  const oldAllocation  = totalAllocations.find(a => a.zoneId === zone._id);
+  const oldAllocation = totalAllocations.find(a => a.zoneId === zone._id);
   const totalZScoreOld = totalAllocations.reduce((sum, a) => sum + a.zScore, 0);
 
   const newZScore = calculateZScore(zone.sizeScore, newDensityScore, w_s, w_d);
 
   // Recalculate this zone's share proportionally within existing active force
-  const activeForce    = totalAllocations.reduce((sum, a) => sum + a.allocation, 0);
+  const activeForce = totalAllocations.reduce((sum, a) => sum + a.allocation, 0);
   const newZScoreTotal = totalZScoreOld - (oldAllocation?.zScore ?? 0) + newZScore;
   const newRequirement = Math.ceil((newZScore / newZScoreTotal) * activeForce);
 

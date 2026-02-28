@@ -38,10 +38,10 @@ const PersonnelSchema = new mongoose.Schema(
       ref: "Zone"
     },
 
-    currentZone: {
+    currentZones: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "Zone"
-    },
+    }],
 
     fatigueScore: {
       type: Number,
@@ -86,7 +86,7 @@ const PersonnelSchema = new mongoose.Schema(
 )
 
 PersonnelSchema.index({ rank: 1, status: 1, fatigueScore: 1 })
-PersonnelSchema.index({ currentZone: 1, status: 1 })
+PersonnelSchema.index({ currentZones: 1, status: 1 })
 PersonnelSchema.index({ email: 1 })
 
 export default mongoose.models.Personnel ||

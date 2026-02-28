@@ -3,7 +3,8 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Loader2 } from "lucide-react"
+import { useState } from "react"
 import dynamic from "next/dynamic"
 
 const MapLocationPicker = dynamic(() => import("@/components/forms/MapLocationPicker"), {
@@ -35,7 +36,7 @@ export default function ZoneConfigForm({
   onSubmit: onSubmitCallback,
 }: {
   defaultValues?: Partial<ZoneFormValues>
-  onSubmit?: (data: ZoneFormValues) => void
+  onSubmit?: (data: ZoneFormValues) => void | Promise<void>
 }) {
   const initialValues: ZoneFormValues = {
     name: defaultValues?.name || "",
@@ -53,9 +54,16 @@ export default function ZoneConfigForm({
     mode: "onChange",
   })
 
-  function onSubmit(data: ZoneFormValues) {
+  const [submitting, setSubmitting] = useState(false)
+
+  async function onSubmit(data: ZoneFormValues) {
     if (onSubmitCallback) {
-      onSubmitCallback(data)
+      setSubmitting(true)
+      try {
+        await onSubmitCallback(data)
+      } finally {
+        setSubmitting(false)
+      }
     } else {
       console.log("Saving Zone:", data)
     }
@@ -159,9 +167,17 @@ export default function ZoneConfigForm({
 
       <button
         type="submit"
-        className="w-full flex items-center justify-center py-2.5 bg-success text-success-foreground rounded-md font-semibold text-sm hover:opacity-90 transition-opacity"
+        disabled={submitting}
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-success text-success-foreground rounded-md font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Save Configuration
+        {submitting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Creating Zone...
+          </>
+        ) : (
+          'Save Configuration'
+        )}
       </button>
     </form>
   )

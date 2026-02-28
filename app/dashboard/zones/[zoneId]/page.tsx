@@ -57,6 +57,18 @@ export default function ZoneDetailPage() {
     })
   }, [zoneId])
 
+  // Rank sorting priority: lower number = higher rank
+  const RANK_ORDER: Record<string, number> = {
+    DGP: 1, ADGP: 2, IG: 3,
+    DIG: 4, SP: 5,
+    DSP: 6, ASP: 7, Inspector: 8,
+    SI: 9, ASI: 10, HeadConstable: 11, Constable: 12,
+  }
+
+  const sortedOfficers = [...officers].sort(
+    (a, b) => (RANK_ORDER[a.rank] ?? 99) - (RANK_ORDER[b.rank] ?? 99)
+  )
+
   const threatMap: Record<string, { color: string; label: string }> = {
     red: { color: "text-danger", label: "CRITICAL" },
     orange: { color: "text-warning", label: "HIGH" },
@@ -292,7 +304,7 @@ export default function ZoneDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {officers.map(officer => {
+                  {sortedOfficers.map(officer => {
                     const fatigueLevel = officer.fatigueScore > 20 ? "warning" : "success"
                     return (
                       <tr key={officer._id} className="hover:bg-surface-raised transition-colors">

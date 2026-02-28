@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Plus, Trash2, AlertCircle, X, Users, Shield, Clock, Activity, ChevronLeft, ChevronRight, Upload, FileSpreadsheet, CheckCircle2 } from "lucide-react"
+import { Search, Plus, Trash2, AlertCircle, X, Users, Shield, Clock, Activity, ChevronLeft, ChevronRight, Upload, FileSpreadsheet, CheckCircle2, CalendarOff, CalendarPlus } from "lucide-react"
 import { RANKS } from "@/lib/constants/ranks"
 
 interface Officer {
@@ -11,7 +11,7 @@ interface Officer {
   rank: string
   status: string
   fatigueScore: number
-  currentZone: { name: string; code: string } | null
+  currentZones: Array<{ _id: string; name: string; code: string }>
   homeZone: { name: string; code: string } | null
   commandLevel: string
 }
@@ -60,6 +60,10 @@ export default function PersonnelPage() {
     errors: Array<{ row: number; reason: string }>
   } | null>(null)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [leaveOfficer, setLeaveOfficer] = useState<Officer | null>(null)
+  const [leaveForm, setLeaveForm] = useState({ startDate: '', endDate: '', reason: '' })
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
 
   useEffect(() => { fetchPersonnel() }, [])
 
@@ -128,6 +132,68 @@ export default function PersonnelPage() {
       if (result.success) await fetchPersonnel()
       else alert(result.error || "Failed to remove officer")
     } catch { alert("Error removing officer") }
+  }
+
+  const applyLeave = async () => {
+    if (!leaveOfficer || !leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) return
+    setLeaveSubmitting(true)
+    setLeaveError(null)
+    try {
+      const res = await fetch(`/api/personnel/${leaveOfficer._id}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leaveForm),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setLeaveOfficer(null)
+        setLeaveForm({ startDate: '', endDate: '', reason: '' })
+        await fetchPersonnel()
+      } else {
+        setLeaveError(result.error || 'Failed to apply leave')
+      }
+    } catch {
+      setLeaveError('Error applying leave')
+    } finally {
+      setLeaveSubmitting(false)
+    }
+  }
+
+  const cancelLeave = async (officerId: string) => {
+    if (!confirm('Cancel this officer\'s active leave?')) return
+    try {
+      // Get officer's leave periods to find the active one
+      const officerRes = await fetch(`/api/personnel/${officerId}`)
+      const officerData = await officerRes.json()
+      if (!officerData.success || !officerData.data) return
+
+      const activeLeavePeriods = officerData.data.leavePeriods || []
+      const now = new Date()
+      const activeLeave = activeLeavePeriods.find((lp: { startDate: string; endDate: string; _id: string }) => {
+        const start = new Date(lp.startDate)
+        const end = new Date(lp.endDate)
+        return start <= now && end >= now || start > now
+      })
+
+      if (!activeLeave) {
+        alert('No active or upcoming leave found')
+        return
+      }
+
+      const res = await fetch(`/api/personnel/${officerId}/leave`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaveId: activeLeave._id }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        await fetchPersonnel()
+      } else {
+        alert(result.error || 'Failed to cancel leave')
+      }
+    } catch {
+      alert('Error cancelling leave')
+    }
   }
 
   const stats = {
@@ -475,7 +541,7 @@ export default function PersonnelPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-raised">
-                {["Badge", "Name", "Rank", "Status", "Fatigue", "Zone", ""].map(h => (
+                {["Badge", "Name", "Rank", "Status", "Fatigue", "Zones", ""].map(h => (
                   <th key={h} className="px-4 py-3 text-left">
                     <span className="mono-data text-[10px]">{h}</span>
                   </th>
@@ -532,22 +598,46 @@ export default function PersonnelPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {p.currentZone ? (
-                        <span className="font-mono text-xs px-2 py-1 bg-surface-overlay border border-border rounded-sm text-foreground">
-                          {p.currentZone.code}
-                        </span>
+                      {p.currentZones && p.currentZones.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {p.currentZones.map((z) => (
+                            <span key={z._id} className="font-mono text-xs px-2 py-1 bg-surface-overlay border border-border rounded-sm text-foreground">
+                              {z.code}
+                            </span>
+                          ))}
+                        </div>
                       ) : (
                         <span className="mono-data">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => deleteOfficer(p._id)}
-                        disabled={p.status === "Deployed"}
-                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-sm border border-border text-muted-foreground hover:border-danger hover:text-danger hover:bg-danger-muted transition-all duration-150 disabled:opacity-0 disabled:pointer-events-none"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150">
+                        {p.status === 'OnLeave' ? (
+                          <button
+                            onClick={() => cancelLeave(p._id)}
+                            title="Cancel Leave"
+                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-border text-muted-foreground hover:border-success hover:text-success hover:bg-success-muted transition-all duration-150"
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { setLeaveOfficer(p); setLeaveError(null); setLeaveForm({ startDate: '', endDate: '', reason: '' }) }}
+                            title="Apply Leave"
+                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-border text-muted-foreground hover:border-warning hover:text-warning hover:bg-warning-muted transition-all duration-150"
+                          >
+                            <CalendarOff className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteOfficer(p._id)}
+                          disabled={p.status === "Deployed"}
+                          title="Remove Officer"
+                          className="flex items-center justify-center w-7 h-7 rounded-sm border border-border text-muted-foreground hover:border-danger hover:text-danger hover:bg-danger-muted transition-all duration-150 disabled:opacity-0 disabled:pointer-events-none"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -581,6 +671,95 @@ export default function PersonnelPage() {
           </div>
         </div>
       </div>
+
+      {/* Leave Application Modal */}
+      {leaveOfficer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-surface border border-border rounded-lg shadow-2xl w-full max-w-md mx-4 animate-slide-in-up">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-surface-raised rounded-t-lg">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <CalendarOff className="w-4 h-4 text-warning" />
+                  <span className="font-display font-semibold text-sm text-foreground">Apply Leave</span>
+                </div>
+                <p className="mono-data text-[10px]">
+                  {leaveOfficer.name} · {leaveOfficer.badgeNumber} · {leaveOfficer.rank}
+                </p>
+              </div>
+              <button
+                onClick={() => setLeaveOfficer(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-overlay text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mono-data text-[10px] block mb-1.5">Start Date</label>
+                  <input
+                    type="date"
+                    value={leaveForm.startDate}
+                    onChange={e => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="mono-data text-[10px] block mb-1.5">End Date</label>
+                  <input
+                    type="date"
+                    value={leaveForm.endDate}
+                    onChange={e => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                    className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mono-data text-[10px] block mb-1.5">Reason</label>
+                <textarea
+                  value={leaveForm.reason}
+                  onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                  placeholder="Medical leave, personal, training, etc."
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm bg-input border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors resize-none"
+                />
+              </div>
+
+              {leaveError && (
+                <div className="sentinel-card border-l-4 border-l-danger p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+                    <p className="text-sm text-danger">{leaveError}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={applyLeave}
+                  disabled={leaveSubmitting || !leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-warning text-warning-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <CalendarOff className="w-3.5 h-3.5" />
+                  {leaveSubmitting ? 'Processing...' : 'Confirm Leave'}
+                </button>
+                <button
+                  onClick={() => setLeaveOfficer(null)}
+                  className="px-4 py-2.5 border border-border rounded-md text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-border-strong transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <p className="mono-data text-[10px] text-center">
+                Active deployments during the leave period will be automatically patched.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

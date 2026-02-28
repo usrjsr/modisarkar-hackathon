@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const officer = await PersonnelModel
       .findById(officerId)
       .populate('homeZone', 'name code heatmapColor')
-      .populate('currentZone', 'name code heatmapColor')
+      .populate('currentZones', 'name code heatmapColor')
 
     if (!officer) {
       return NextResponse.json({ success: false, error: 'Officer not found' }, { status: 404 })
@@ -65,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       { new: true }
     )
       .populate('homeZone', 'name code')
-      .populate('currentZone', 'name code')
+      .populate('currentZones', 'name code')
 
     return NextResponse.json({ success: true, data: updated })
   } catch {

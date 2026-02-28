@@ -34,7 +34,7 @@ export async function POST() {
                     rank,
                     commandLevel: RANK_TO_LEVEL[rank as Rank],
                     homeZone: null,
-                    currentZone: null,
+                    currentZones: [],
                     fatigueScore: 0,
                     fatigueHistory: [],
                     status: 'Active',

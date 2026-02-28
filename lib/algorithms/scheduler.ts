@@ -1,6 +1,6 @@
 import { SHIFTS, SHIFT_SEQUENCE } from '../constants/shifts';
 import { STANDBY_POOL_PERCENTAGE, MAX_CONSECUTIVE_NIGHT_SHIFTS } from '../constants/thresholds';
-import { RANK_TO_LEVEL, MIN_ZONE_COMPOSITION, FIELD_DEPLOYABLE_RANKS } from '../constants/ranks';
+import { RANK_TO_LEVEL, MIN_ZONE_COMPOSITION, FIELD_DEPLOYABLE_RANKS, COMMAND_LEVEL, STRATEGIC_LEVEL, ZONE_MANAGER_LEVEL } from '../constants/ranks';
 import {
   sortByEligibility,
   hasCompletedRest,
@@ -9,6 +9,7 @@ import {
   buildDailyFatigueSummary,
   decayFatigue,
 } from './fatigueCalculator';
+import type { DynamicFatigueWeights, DynamicRestHours } from './fatigueCalculator';
 import type { Zone, ZoneAllocation } from '../types/zone';
 import type { Personnel } from '../types/personnel';
 import type { ShiftName } from '../constants/shifts';
@@ -29,6 +30,10 @@ export interface SchedulerInput {
   allocations: ZoneAllocation[];  // From proportionalDistributor
   personnel: Personnel[];
   weights: { w_s: number; w_d: number };
+  // Dynamic config from SystemConfig — all optional with fallbacks
+  standbyPercentage?: number;
+  restHours?: DynamicRestHours;
+  fatigueWeights?: DynamicFatigueWeights;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -96,16 +101,14 @@ function pickOfficersForZone(
   zone: Zone,
   allocation: ZoneAllocation,
   availablePool: Personnel[],
-  standbyPool: Personnel[],
   shiftStart: Date,
   shiftEnd: Date,
   assignedIds: Set<string>,    // Already assigned this shift — global guard
   violations: RosterViolation[],
   dayNumber: number,
   shift: ShiftName,
-): { deployedIds: string[]; usedStandbyIds: Set<string> } {
+): { deployedIds: string[] } {
   const deployedIds: string[] = [];
-  const usedStandbyIds: Set<string> = new Set();
   // Divide total allocation by number of shifts so each shift fills its fair share
   const numShifts = SHIFT_SEQUENCE.length; // 3
   const needed = Math.ceil(allocation.allocation / numShifts);
@@ -132,19 +135,6 @@ function pickOfficersForZone(
       deployedIds.push(officer._id);
       assignedIds.add(officer._id);
       filled++;
-    }
-
-    if (filled < required) {
-      const standbyCandidates = standbyPool.filter(
-        o => o.rank === rank && !assignedIds.has(o._id) && isAvailableForShift(o, shiftStart)
-      );
-      for (const officer of standbyCandidates) {
-        if (filled >= required) break;
-        deployedIds.push(officer._id);
-        assignedIds.add(officer._id);
-        usedStandbyIds.add(officer._id);
-        filled++;
-      }
     }
 
     if (filled < required) {
@@ -193,7 +183,134 @@ function pickOfficersForZone(
     });
   }
 
-  return { deployedIds, usedStandbyIds };
+  return { deployedIds };
+}
+
+// ─── Multi-zone pre-pass ─────────────────────────────────────────────────────
+// Rank-based zone assignment:
+//   DGP/ADGP/IG (Command)       → SKIP, not field deployed
+//   DIG/SP      (Strategic)     → Zone CLUSTER (zones split evenly among officers)
+//   DSP/ASP/Inspector (ZoneManager) → 1–3 ADJACENT zones by min distance
+//   SI/ASI/HC/Constable         → handled later by pickOfficersForZone (single zone)
+
+interface MultiZoneAssignment {
+  officerId: string;
+  zoneIds: string[];   // zones this officer supervises
+  rank: string;
+  commandLevel: string;
+}
+
+/** Fisher-Yates shuffle — returns a new shuffled array */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function multiZonePrePass(
+  zones: Zone[],
+  activePool: Personnel[],
+  standbyOfficers: Personnel[],
+  shiftStart: Date,
+  assignedIds: Set<string>,
+): MultiZoneAssignment[] {
+  const assignments: MultiZoneAssignment[] = [];
+  const allPool = [...activePool, ...standbyOfficers];
+
+  // ── 0. DGP/ADGP/IG (Command) → SKIP entirely ──────────────────────────────
+  // They are not field-deployable. Mark them as assigned so pickOfficersForZone
+  // never picks them either.
+  for (const officer of allPool) {
+    if ((COMMAND_LEVEL as readonly string[]).includes(officer.rank)) {
+      assignedIds.add(officer._id);
+    }
+  }
+
+  // ── 1. DIG/SP (Strategic) → zone CLUSTERS ──────────────────────────────────
+  // Distribute all zones evenly among available DIG/SP officers.
+  // Each officer supervises a cluster; no zone is shared between officers.
+  const strategicOfficers = shuffle(
+    allPool.filter(o =>
+      (STRATEGIC_LEVEL as readonly string[]).includes(o.rank) &&
+      !assignedIds.has(o._id) &&
+      isAvailableForShift(o, shiftStart)
+    )
+  );
+
+  if (strategicOfficers.length > 0) {
+    const shuffledZoneIds = shuffle(zones).map(z => z._id);
+    const clusterSize = Math.ceil(shuffledZoneIds.length / strategicOfficers.length);
+
+    for (let i = 0; i < strategicOfficers.length; i++) {
+      const clusterStart = i * clusterSize;
+      const cluster = shuffledZoneIds.slice(clusterStart, clusterStart + clusterSize);
+      if (cluster.length === 0) break; // more officers than zones
+
+      assignments.push({
+        officerId: strategicOfficers[i]._id,
+        zoneIds: cluster,
+        rank: strategicOfficers[i].rank,
+        commandLevel: 'Strategic',
+      });
+      assignedIds.add(strategicOfficers[i]._id);
+    }
+  }
+
+  // ── 2. DSP/ASP/Inspector (ZoneManager) → 1–3 ADJACENT zones by distance ───
+  // For each available officer, pick an unassigned anchor zone then add up to 2
+  // nearest adjacent zones (from zone.distanceMatrix sorted by distanceKm).
+  // No zone can be assigned to more than one ZoneManager.
+  const zoneManagerOfficers = shuffle(
+    allPool.filter(o =>
+      (ZONE_MANAGER_LEVEL as readonly string[]).includes(o.rank) &&
+      !assignedIds.has(o._id) &&
+      isAvailableForShift(o, shiftStart)
+    )
+  );
+
+  // Build a set of zones not yet claimed by any ZoneManager
+  const unclaimedZones = new Set(zones.map(z => z._id));
+  // Build a quick lookup for zone objects by ID
+  const zoneById = new Map(zones.map(z => [z._id, z]));
+
+  for (const officer of zoneManagerOfficers) {
+    if (unclaimedZones.size === 0) break;
+
+    // Pick an unclaimed zone as anchor (random — Set iteration after shuffle)
+    const unclaimedArr = shuffle([...unclaimedZones]);
+    const anchorId = unclaimedArr[0];
+    const anchorZone = zoneById.get(anchorId);
+    if (!anchorZone) continue;
+
+    const clusterIds: string[] = [anchorId];
+    unclaimedZones.delete(anchorId);
+
+    // Add up to 2 nearest adjacent zones from distanceMatrix (sorted by distanceKm)
+    const sortedNeighbours = (anchorZone.distanceMatrix ?? [])
+      .slice() // don't mutate original
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+
+    for (const entry of sortedNeighbours) {
+      if (clusterIds.length >= 3) break;
+      if (unclaimedZones.has(entry.zoneId)) {
+        clusterIds.push(entry.zoneId);
+        unclaimedZones.delete(entry.zoneId);
+      }
+    }
+
+    assignments.push({
+      officerId: officer._id,
+      zoneIds: clusterIds,
+      rank: officer.rank,
+      commandLevel: 'ZoneManager',
+    });
+    assignedIds.add(officer._id);
+  }
+
+  return assignments;
 }
 
 // ─── Build a single ShiftBlock ────────────────────────────────────────────────
@@ -214,6 +331,29 @@ function buildShiftBlock(
   const deployments: Record<string, unknown>[] = [];
   const allDeployedIds: Set<string> = new Set();
 
+  // ── Pre-pass: assign one DIG/SP and one DSP/ASP/Inspector per zone ──
+  const multiZoneAssignments = multiZonePrePass(
+    zones,
+    activePool,
+    standbyOfficers,
+    shiftStart,
+    globalAssignedIds,
+  );
+
+  // Mark all multi-zone officers as deployed
+  for (const mza of multiZoneAssignments) {
+    allDeployedIds.add(mza.officerId);
+  }
+
+  // Build a lookup: zoneId → list of multi-zone officer IDs assigned to that zone
+  const multiZoneByZone = new Map<string, string[]>();
+  for (const mza of multiZoneAssignments) {
+    for (const zoneId of mza.zoneIds) {
+      if (!multiZoneByZone.has(zoneId)) multiZoneByZone.set(zoneId, []);
+      multiZoneByZone.get(zoneId)!.push(mza.officerId);
+    }
+  }
+
   // Sort zones by Z-score DESCENDING so highest-risk zones get first pick of personnel
   const sortedZones = [...zones].sort((a, b) => {
     const allocA = allocations.find(al => al.zoneId === a._id);
@@ -225,11 +365,10 @@ function buildShiftBlock(
     const allocation = allocations.find(a => a.zoneId === zone._id);
     if (!allocation) continue;
 
-    const { deployedIds, usedStandbyIds } = pickOfficersForZone(
+    const { deployedIds } = pickOfficersForZone(
       zone,
       allocation,
       activePool,
-      standbyOfficers,
       shiftStart,
       shiftEnd,
       globalAssignedIds,
@@ -238,10 +377,13 @@ function buildShiftBlock(
       shift,
     );
 
-    deployedIds.forEach(id => allDeployedIds.add(id));
-    usedStandbyIds.forEach(id => allDeployedIds.add(id));
+    deployedIds.forEach((id: string) => allDeployedIds.add(id));
 
-    const totalStrength = deployedIds.length;
+    // Merge multi-zone officers (DIG/SP/DSP/ASP/Inspector) assigned to this zone
+    const multiZoneOfficersForZone = multiZoneByZone.get(zone._id) ?? [];
+    const allZonePersonnel = [...new Set([...multiZoneOfficersForZone, ...deployedIds])];
+
+    const totalStrength = allZonePersonnel.length;
     // Use per-shift allocation (not total) for accurate reporting
     const perShiftAllocation = Math.ceil(allocation.allocation / SHIFT_SEQUENCE.length);
     const requiredStrength = perShiftAllocation;
@@ -249,7 +391,8 @@ function buildShiftBlock(
 
     deployments.push({
       zoneId: zone._id,
-      personnel: deployedIds as unknown as import('../types/personnel').PersonnelRef[],
+      personnelIds: allZonePersonnel,
+      personnel: allZonePersonnel as unknown as import('../types/personnel').PersonnelRef[],
       totalStrength,
       requiredStrength,
       deficit,
@@ -334,7 +477,8 @@ export function generateRoster(input: SchedulerInput): RosterDraft {
     input.personnel.filter(o => FIELD_DEPLOYABLE_RANKS.includes(o.rank))
   );
 
-  const standbyCount = Math.floor(totalForce * STANDBY_POOL_PERCENTAGE);
+  const standbyFraction = input.standbyPercentage ?? STANDBY_POOL_PERCENTAGE;
+  const standbyCount = Math.floor(totalForce * standbyFraction);
   const activeForce = totalForce - standbyCount;
   const violations: RosterViolation[] = [];
   const schedule: DaySchedule[] = [];

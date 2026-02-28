@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     if (rank) query.rank = rank
     if (status) query.status = status
-    if (zoneId) query.currentZone = zoneId
+    if (zoneId) query.currentZones = zoneId
     if (deployable === 'true') query.rank = { $in: FIELD_DEPLOYABLE_RANKS }
 
     const [personnel, total] = await Promise.all([
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         .skip(skip)
         .limit(limit)
         .populate('homeZone', 'name code')
-        .populate('currentZone', 'name code'),
+        .populate('currentZones', 'name code'),
       PersonnelModel.countDocuments(query),
     ])
 
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       rank,
       commandLevel,
       homeZone: homeZone ?? null,
-      currentZone: null,
+      currentZones: [],
       fatigueScore: 0,
       fatigueHistory: [],
       status,

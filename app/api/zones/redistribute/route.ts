@@ -100,15 +100,27 @@ export async function POST(req: NextRequest) {
       weights: config.weights,
     })
 
-    await ZoneModel.findByIdAndUpdate(zoneId, {
-      densityScore: newDensityScore,
-      currentDeployment: (deployedPersonnel.get(zoneId)?.length ?? 0) + result.troopsResolved,
-      heatmapColor: result.newZScore >= 7.5 ? 'red'
-        : result.newZScore >= 5 ? 'orange'
-          : result.newZScore >= 2.5 ? 'yellow'
-            : 'green',
-      $inc: { version: 1 },
-    })
+    // Optimistic lock: only update if version hasn't changed
+    const zoneUpdateResult = await ZoneModel.findOneAndUpdate(
+      { _id: zoneId, version: affectedZoneDoc.version },
+      {
+        densityScore: newDensityScore,
+        currentDeployment: (deployedPersonnel.get(zoneId)?.length ?? 0) + result.troopsResolved,
+        heatmapColor: result.newZScore >= 7.5 ? 'red'
+          : result.newZScore >= 5 ? 'orange'
+            : result.newZScore >= 2.5 ? 'yellow'
+              : 'green',
+        $inc: { version: 1 },
+      },
+      { new: true }
+    )
+
+    if (!zoneUpdateResult) {
+      return NextResponse.json(
+        { success: false, error: 'Concurrent modification detected on zone. Reload and try again.' },
+        { status: 409 }
+      )
+    }
 
     if (result.movedPersonnel.length > 0) {
       const affectedDeployment = await DeploymentModel.findOne({

@@ -27,7 +27,7 @@ export interface Personnel {
 
   // Assignment
   homeZone: string;        // Zone _id
-  currentZone: string | null;
+  currentZones: string[];      // Zone _ids (multi-zone for DIG/SP, DSP/ASP/Inspector)
 
   // Fatigue
   fatigueScore: number;

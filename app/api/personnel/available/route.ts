@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       .find(query)
       .sort({ fatigueScore: 1 })
       .populate('homeZone', 'name code')
-      .populate('currentZone', 'name code')
+      .populate('currentZones', 'name code')
 
     const personnelPlain = personnel.map(p => p.toObject()) as Personnel[]
 

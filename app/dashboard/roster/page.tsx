@@ -20,6 +20,8 @@ interface RosterData {
     weights: { w_s: number; w_d: number }
     standbyPool: number
     totalZones: number
+    standbyPercentage?: number
+    restHours?: { lowerRanks: number; inspectors: number }
   }
   schedule: Array<{
     date: string
@@ -411,8 +413,8 @@ export default function RosterPage() {
                           </p>
                           <p className="mono-data text-[10px]">/ {totals.required}</p>
                           <span className={`inline-block mt-1 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-sm border ${isDeficit
-                              ? "bg-danger-muted border-danger text-danger"
-                              : "bg-success-muted border-success text-success"
+                            ? "bg-danger-muted border-danger text-danger"
+                            : "bg-success-muted border-success text-success"
                             }`}>
                             {isDeficit ? "DEFICIT" : "OK"}
                           </span>
@@ -435,8 +437,8 @@ export default function RosterPage() {
           {[
             { label: "Weight (Size)", value: `${roster.configSnapshot?.weights?.w_s ?? 0.3}` },
             { label: "Weight (Density)", value: `${roster.configSnapshot?.weights?.w_d ?? 0.7}` },
-            { label: "Standby Pool", value: "15%" },
-            { label: "Min Rest Hours", value: "8–12 hrs" },
+            { label: "Standby Pool", value: `${((roster.configSnapshot?.standbyPercentage ?? 0.15) * 100).toFixed(0)}%` },
+            { label: "Min Rest Hours", value: `${roster.configSnapshot?.restHours?.lowerRanks ?? 8}–${roster.configSnapshot?.restHours?.inspectors ?? 12} hrs` },
           ].map(item => (
             <div key={item.label} className="bg-surface-raised border border-border rounded-md p-3">
               <p className="mono-data text-[10px] mb-1">{item.label}</p>
@@ -594,16 +596,16 @@ export default function RosterPage() {
                                             </td>
                                             <td className="px-4 py-2">
                                               <span className={`font-mono text-[10px] font-bold px-2 py-1 rounded-sm border ${officer.status === 'Deployed'
-                                                  ? 'bg-success-muted border-success text-success'
-                                                  : 'bg-primary-muted border-primary text-primary'
+                                                ? 'bg-success-muted border-success text-success'
+                                                : 'bg-primary-muted border-primary text-primary'
                                                 }`}>
                                                 {officer.status?.toUpperCase()}
                                               </span>
                                             </td>
                                             <td className="px-4 py-2">
                                               <span className={`font-mono text-[10px] font-bold px-2 py-1 rounded-sm border ${fatigueLevel === 'warning'
-                                                  ? 'bg-warning-muted border-warning text-warning'
-                                                  : 'bg-success-muted border-success text-success'
+                                                ? 'bg-warning-muted border-warning text-warning'
+                                                : 'bg-success-muted border-success text-success'
                                                 }`}>
                                                 {officer.fatigueScore?.toFixed(1)}%
                                               </span>
