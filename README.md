@@ -457,5 +457,5 @@ modisarkar-hackathon/
 ---
 
 <p align="center">
-  <strong>Built for SIH 2024 · Team Modi Sarkar</strong>
+  <strong>Built for Hack-De-Science OJASS 2026 · Team Modi Sarkar</strong>
 </p>
