@@ -64,7 +64,7 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <label className="mono-data text-[10px] uppercase tracking-widest block">Email Address</label>
+              <label className="mono-data text-[10px] uppercase tracking-widest block">Email Address(Testing Email:admin@sentinel.local)</label>
               <input
                 type="email"
                 placeholder="admin@sentinel.local"
@@ -76,7 +76,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="mono-data text-[10px] uppercase tracking-widest block">Password</label>
+              <label className="mono-data text-[10px] uppercase tracking-widest block">Password(Testing Password:admin123)</label>
               <input
                 type="password"
                 placeholder="••••••••"
